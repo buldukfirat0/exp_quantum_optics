@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HBT Setup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>The HBT experiment: do photons arrive together?</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="HBT Setup animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'HBT Setup', heading: 'The HBT experiment: do photons arrive together?' };
+
+/* ================= HBT scene: one idea per step ================= */
+const LIGHTS = [
+  ['bunched', 'Bunched', C.bunch, 'thermal lamp, photons in groups'],
+  ['random', 'Random', C.rand, 'laser, photons independent'],
+  ['antibunched', 'Antibunched', C.anti, 'single emitter, one at a time']];
+const LCOL = { bunched: C.bunch, random: C.rand, antibunched: C.anti };
+const LSUB = { bunched: 'thermal lamp', random: 'laser', antibunched: 'single emitter' };
+const TYPES = ['bunched', 'random', 'antibunched'];
+const A = { type: 'bunched', spd: 1, hspd: 20000 };
+
+/* time unit everywhere: the average time between two photons of the source */
+const DEAD = 0.3;                                 // dead time of the single detector in step 1
+const COW = 0.1;                                  // two clicks closer than this count as a coincidence
+const RANGE = 0.6, NB = 30, BW = RANGE / NB;      // delay histogram
+const R2 = 0.5;                                   // each detector receives half of the photons
+
+/* slow sources for steps 1 to 4. Bunched light is exaggerated into bursts, so that pairs are easy to see. */
+function burstStream() {
+  const q = [], s = { t: 0 }; let tc = 0;
+  s.next = () => {
+    while (!q.length) {
+      tc += R.exp(0.4);                           // a burst every 2.5 time units, 2.5 photons on average: rate 1
+      const n = 1 + R.poisson(1.5); let t = tc;
+      for (let k = 0; k < n; k++) { q.push(t); t += R.exp(1 / 0.03); }
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+const slowSource = t => t === 'bunched' ? burstStream() : t === 'antibunched' ? emitterStream(1, 0.25) : randomStream(1);
+/* real models for the histograms of steps 5 to 7: g2 = 1 + exp(-tau/0.12), 1, 1 - exp(-tau/0.12) */
+const fastSource = t => t === 'bunched' ? thermalStream(1, 0.12) : t === 'antibunched' ? emitterStream(1, 0.12) : randomStream(1);
+const newPhoton = t => ({ t: t, d: Math.random() < 0.5 ? 1 : 2 });
+
+/* ---------- slow experiment (steps 1 to 4) ---------- */
+let SL;
+function slowReset() {
+  SL = { src: slowSource(A.type), now: 0, pend: [], ph: [], miss: [], c1: [], c2: [], n1: 0, n2: 0, dead: -1, nPh: 0, nCl: 0,
+    nCo: 0, co: [], pair: null, tauAt: -1e9, fx1: 0, fx2: 0, fxCo: 0, fxMiss: 0, look: 1.6 * A.spd };
+}
+function arriveOne(p) {
+  SL.nPh++; SL.ph.push(p.t);
+  if (p.t < SL.dead) { SL.miss.push(p.t); SL.fxMiss = 1; }
+  else { SL.c1.push(p.t); SL.nCl++; SL.dead = p.t + DEAD; SL.fx1 = 1; }
+}
+function arriveTwo(p) {
+  const t = p.t;
+  if (p.d === 1) {
+    SL.c1.push(t); SL.n1++; SL.fx1 = 1;
+    const u = SL.c2[SL.c2.length - 1]; if (u != null && t - u < COW) coincidence(u, t);
+  } else {
+    SL.c2.push(t); SL.n2++; SL.fx2 = 1;
+    const u = SL.c1[SL.c1.length - 1];
+    if (u != null && t - u < COW) coincidence(u, t);
+    if (u != null && t - u < 1) { SL.pair = [u, t]; SL.tauAt = performance.now(); }
+  }
+}
+function coincidence(ta, tb) {                     // clicks of one burst count as one coincidence
+  const last = SL.co[SL.co.length - 1];
+  if (last && ta - last[1] < 0.2) { last[1] = tb; return; }
+  SL.nCo++; SL.co.push([ta, tb]); SL.fxCo = 1;
+}
+function slowAdvance(dt, one) {
+  const S = SL, tEnd = S.now + dt;
+  for (;;) {
+    if (!S.pend.length) S.pend.push(newPhoton(S.src.next()));
+    if (S.pend[0].t > tEnd) break;
+    const p = S.pend.shift();
+    if (one) arriveOne(p); else arriveTwo(p);
+  }
+  while (S.pend[S.pend.length - 1].t <= tEnd + S.look) S.pend.push(newPhoton(S.src.next()));
+  S.now = tEnd;
+  for (const k of ['ph', 'miss', 'c1', 'c2', 'co']) if (S[k].length > 300) S[k].splice(0, S[k].length - 150);
+}
+
+/* ---------- fast experiments (steps 5 to 7): for every click of detector 1, the delays to the later clicks of detector 2 ---------- */
+let F3;
+function fastReset() {
+  F3 = TYPES.map(t => { const s = fastSource(t); return { type: t, src: s, nx: s.next(), now: 0, c1: [], n1: 0, hist: new Float64Array(NB), ys: null }; });
+}
+function fastAdvance(F, dt) {
+  const tEnd = F.now + dt;
+  while (F.nx <= tEnd) {
+    const t = F.nx; F.nx = F.src.next();
+    if (Math.random() < 0.5) { F.c1.push(t); F.n1++; }
+    else for (let i = F.c1.length - 1; i >= 0; i--) { const d = t - F.c1[i]; if (d >= RANGE) break; F.hist[Math.floor(d / BW)]++; }
+  }
+  F.now = tEnd;
+  if (F.c1.length > 400) { let k = 0; while (k < F.c1.length && F.now - F.c1[k] > RANGE) k++; F.c1.splice(0, k); }
+}
+function runFast(dt) {
+  const target = A.hspd * dt, t0 = performance.now();
+  let done = 0;
+  while (done < target) {
+    const c = Math.min(target - done, 5);
+    for (const F of F3) fastAdvance(F, c);
+    done += c;
+    if (performance.now() - t0 > 12) break;
+  }
+}
+const level = F => F.n1 * R2 * BW;               // counts per bin for photons at unrelated random times
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Dead time', cap: '1. The dead time of a single detector',
+    sub: 'A photon detector gives one [click] for each photon it detects. After a click it is blind for a short time, the [dead time]. A second photon that arrives during the dead time is not detected.',
+    show: ['one', 'linesOne', 'panelOne'], ctrl: ['light', 'spd'] },
+  { short: 'Beam splitter', cap: '2. The beam splitter',
+    sub: 'A 50:50 [beam splitter] transmits half of the light and reflects the other half. Each photon is detected either in the transmitted beam or in the reflected beam, never in both. Two photons that arrive together can therefore be detected by two different detectors.',
+    show: ['two', 'linesTwo', 'panelTwo'], ctrl: ['light', 'spd'] },
+  { short: 'Coincidence', cap: '3. Coincidences',
+    sub: 'A [coincidence] is a click of detector 1 and a click of detector 2 at the same moment. Two photons that arrive together produce a coincidence whenever they leave the beam splitter in different directions.',
+    show: ['two', 'linesTwo', 'co', 'panelCo'], ctrl: ['light', 'spd'] },
+  { short: 'Delay τ', cap: '4. The delay τ between the two clicks',
+    sub: 'A [timing circuit] measures the [delay] {τ = t₂ − t₁}, the time from a click of detector 1 to a following click of detector 2. A coincidence corresponds to {τ ≈ 0}.',
+    show: ['two', 'linesTwo', 'co', 'tau', 'panelTau'], ctrl: ['light', 'spd'] },
+  { short: 'Histogram of delays', cap: '5. The histogram of delays',
+    sub: 'The measured delays are collected in a histogram. For photons that arrive at unrelated random times, the histogram is flat, shown by the dashed line.',
+    show: ['two', 'hist'], ctrl: ['light', 'hspd'] },
+  { short: 'Peak, flat, dip', cap: '6. Bunched, random and antibunched light',
+    sub: 'The delay histograms of three sources with the same average rate; the dashed line is the level for photons at unrelated random times. Thermal light: a peak at {τ = 0}, the photons tend to arrive together, [bunched]. Laser light: flat, the photons arrive independently, [random]. A single emitter: a dip at {τ = 0}, the photons arrive one at a time, [antibunched]. In a counting experiment the same three sources give count histograms wider than, equal to and narrower than the Poisson distribution.',
+    show: ['three'], ctrl: ['hspd'] },
+  { short: 'g two of zero', cap: '7. The second-order correlation function at zero delay',
+    sub: 'The histograms of step 6, divided by the flat level of random photons. The value at zero delay, [g two of zero], classifies the light: bunched light {g two of zero > 1}, laser light {g two of zero = 1}, antibunched light {g two of zero < 1}. Classical light waves always give a value of at least 1, so a value below 1 is a purely quantum effect.',
+    show: ['three', 'g2'], ctrl: ['hspd'] }
+];
+STEPS[0].enter = STEPS[1].enter = () => slowReset();
+const CTRL = {
+  light: { kind: 'seg', label: 'light source', options: LIGHTS, get: () => A.type, set: v => { A.type = v; slowReset(); } },
+  spd: { kind: 'log', label: 'speed', min: 0.2, max: 6, get: () => A.spd, set: v => { A.spd = v; SL.look = 1.6 * v; }, fmt: v => v.toFixed(1) + ' photons/s' },
+  hspd: { kind: 'log', label: 'speed', min: 100, max: 60000, get: () => A.hspd, set: v => { A.hspd = v; }, fmt: v => Math.round(v) + ' photons/s' }
+};
+
+/* ================= drawing ================= */
+const SRC = { x: 60, y: 470, w: 240, h: 100 }, BY = 520, BX = 640;
+const D1 = { x: 900, y: 470, w: 230, h: 100 }, D2 = { x: 525, y: 175, w: 230, h: 100 };
+const LEN = D1.x - (SRC.x + SRC.w), LS = BX - (SRC.x + SRC.w), ARM = BY - (D2.y + D2.h);   // 600 to detector 1, 340 to the splitter, ARM up to detector 2
+const slowSub = () => cur <= 3 && A.type === 'bunched' ? 'pairs (exaggerated)' : LSUB[A.type];
+
+function drawSetup(split) {
+  ctx.fillStyle = alpha(C.photon, .09); ctx.fillRect(SRC.x + SRC.w, BY - 16, LEN, 32);
+  if (split) ctx.fillRect(BX - 16, D2.y + D2.h, 32, BY - D2.y - D2.h);
+  sourceBox(SRC.x, SRC.y, SRC.w, SRC.h, A.type + ' light', slowSub(), LCOL[A.type]);
+  for (const p of SL.pend) {
+    const s = (p.t - SL.now) / SL.look; if (s < 0 || s > 1) continue;
+    const dist = (1 - s) * LEN;
+    if (!split || dist < LS || p.d === 1) dot(SRC.x + SRC.w + dist, BY, 9, C.photon, true);
+    else dot(BX, BY - (dist - LS) * ARM / (LEN - LS), 9, C.photon, true);
+  }
+  if (split) {
+    ctx.save(); ctx.translate(BX, BY);
+    rrect(-30, -30, 60, 60, 4, alpha(C.rand, .12), C.muted, 2); line(-30, 30, 30, -30, C.ink, 3);
+    ctx.restore();
+    txt('50:50 beam splitter', BX, BY + 74, { size: 19, weight: 700, align: 'center', color: C.muted });
+    detector(D1.x, D1.y, D1.w, D1.h, 'detector 1', null, SL.fx1, 'left', C.d1);
+    detector(D2.x, D2.y, D2.w, D2.h, 'detector 2', null, SL.fx2, 'bottom', C.d2);
+  } else {
+    const rem = SL.dead - SL.now, blind = rem > 0;
+    detector(D1.x, D1.y, D1.w, D1.h, 'detector', null, SL.fx1, 'left', blind ? C.hot : C.ink);
+    if (blind) txt('blind', D1.x + D1.w / 2 + 10, D1.y + D1.h - 14, { size: 18, weight: 700, align: 'center', color: C.hot });
+    rrect(D1.x, D1.y + D1.h + 14, D1.w, 18, 5, C.panel2, C.line, 1.2);
+    if (blind) { ctx.fillStyle = alpha(C.hot, .6); ctx.fillRect(D1.x + 1, D1.y + D1.h + 15, (D1.w - 2) * Math.min(1, rem / DEAD), 16); }
+    txt('dead time', D1.x + D1.w / 2, D1.y + D1.h + 54, { size: 18, weight: 700, align: 'center', color: C.hot });
+    if (SL.fxMiss > 0.02) group(SL.fxMiss, () => {
+      const x = D1.x - 18, y = BY - 40;
+      line(x - 12, y - 12, x + 12, y + 12, C.hot, 4); line(x - 12, y + 12, x + 12, y - 12, C.hot, 4);
+      txt('missed', x, y - 22, { size: 20, weight: 700, align: 'center', color: C.hot });
+    });
+  }
+}
+const TX0 = 230, TX1 = 1100, TSPAN = 6, TPX = (TX1 - TX0) / TSPAN, Y1 = 720, Y2 = 820;
+const TX = t => TX1 - (SL.now - t) * TPX;
+function ticks(arr, y, col) { for (const t of arr) { const x = TX(t); if (x >= TX0) line(x, y - 22, x, y + 22, col, 4); } }
+function drawLinesOne() {
+  txt('photons arriving', 40, Y1 + 7, { size: 20, weight: 700, color: C.photonTxt });
+  txt('clicks', 40, Y2 + 7, { size: 20, weight: 700, color: C.ink });
+  line(TX0, Y1, TX1, Y1, C.muted, 2); line(TX0, Y2, TX1, Y2, C.muted, 2);
+  ticks(SL.ph, Y1, C.photon); ticks(SL.c1, Y2, C.ink);
+  for (const t of SL.miss) { const x = TX(t); if (x < TX0) continue; line(x - 11, Y1 - 11, x + 11, Y1 + 11, C.hot, 4); line(x - 11, Y1 + 11, x + 11, Y1 - 11, C.hot, 4); }
+  txt('red cross: photon missed, it came during the dead time', TX0, Y2 + 56, { size: 18, color: C.hot });
+  line(TX1, Y1 - 30, TX1, Y2 + 30, C.muted, 1.5, [5, 5]); txt('now', TX1, Y2 + 56, { size: 18, weight: 700, align: 'center', color: C.muted });
+}
+function drawLinesTwo(aCo, aTau) {
+  txt('detector 1', 40, Y1 + 7, { size: 20, weight: 700, color: C.d1 });
+  txt('detector 2', 40, Y2 + 7, { size: 20, weight: 700, color: C.d2 });
+  if (aCo > 0.01) group(aCo, () => {
+    for (const c of SL.co) {
+      const xa = TX(c[0]), xb = TX(c[1]); if (xb < TX0) continue;
+      ctx.fillStyle = alpha(C.ok, .18); ctx.fillRect(Math.max(TX0, xa) - 10, Y1 - 34, xb - xa + 20, Y2 - Y1 + 68);
+    }
+  });
+  line(TX0, Y1, TX1, Y1, C.muted, 2); line(TX0, Y2, TX1, Y2, C.muted, 2);
+  ticks(SL.c1, Y1, C.d1); ticks(SL.c2, Y2, C.d2);
+  if (aCo > 0.01) group(aCo, () => { for (const c of SL.co) { const x = (TX(c[0]) + TX(c[1])) / 2; if (x >= TX0 + 40) txt('coincidence', x, Y1 - 42, { size: 16, weight: 700, align: 'center', color: C.ok }); } });
+  if (aTau > 0.01 && SL.pair) group(aTau, () => {
+    const xa = TX(SL.pair[0]), xb = TX(SL.pair[1]); if (xa < TX0) return;
+    arrow(xa, Y1 + 26, xb, Y2 - 26, C.term, 3, 12);
+    txtBg('τ = ' + (SL.pair[1] - SL.pair[0]).toFixed(2), Math.min(xb + 16, TX1 - 70), (Y1 + Y2) / 2 + 8, { size: 20, weight: 700, color: C.term });
+  });
+  line(TX1, Y1 - 30, TX1, Y2 + 30, C.muted, 1.5, [5, 5]); txt('now', TX1, Y2 + 56, { size: 18, weight: 700, align: 'center', color: C.muted });
+  bracket(TX0, TX0 + TPX, Y2 + 50, 'average time between photons', C.muted, 17);
+}
+const PX = 1200, PX2 = 1560;
+function rows(list, y0) {
+  let y = y0;
+  for (const r of list) { txt(r[0], PX, y, { size: 22, color: C.muted }); txt(String(r[1]), PX2, y, { size: 28, weight: 700, mono: true, align: 'right', color: r[2] || C.ink }); y += 46; }
+}
+function drawPanelOne() { rows([['photons arrived', SL.nPh], ['clicks', SL.nCl], ['missed', SL.nPh - SL.nCl, C.hot]], 330); }
+function drawPanelTwo() { rows([['detector 1 clicks', SL.n1, C.d1], ['detector 2 clicks', SL.n2, C.d2]], 330); txt('each photon: one detector', PX, 440, { size: 19, color: C.muted }); }
+function drawPanelCo() {
+  txt('coincidences', PX, 330, { size: 22, color: C.muted });
+  txt(String(SL.nCo), PX2, 340, { size: 48, weight: 700, mono: true, align: 'right', color: C.ok });
+  txt('both detectors clicked within 0.1', PX, 372, { size: 18, color: C.muted });
+  if (SL.fxCo > 0.02) group(SL.fxCo, () => txtBg('coincidence!', 830, 400, { size: 34, weight: 700, align: 'center', color: C.ok }));
+}
+function drawPanelTau() {
+  rrect(PX - 20, 270, PX2 - PX + 40, 200, 14, C.panel2, C.term, 2.5);
+  txt('timing circuit', PX, 310, { size: 24, weight: 700, color: C.term });
+  txt('delay of the last pair', PX, 345, { size: 18, color: C.muted });
+  txt(SL.pair ? 'τ = ' + (SL.pair[1] - SL.pair[0]).toFixed(2) : 'τ = ...', PX, 410, { size: 44, weight: 700, mono: true, color: C.term });
+  if (SL.pair && SL.pair[1] - SL.pair[0] < COW) txt('coincidence', PX2, 410, { size: 22, weight: 700, align: 'right', color: C.ok });
+  txt('coincidences so far: ' + SL.nCo, PX, 452, { size: 18, color: C.muted });
+}
+function drawHist(F, x, y, w, h, fs, norm, title) {
+  const col = LCOL[F.type], lv = level(F), val = k => norm ? (lv > 0 ? F.hist[k] / lv : 0) : F.hist[k];
+  let top = norm ? 2.4 : 1; for (let k = 0; k < NB; k++) top = Math.max(top, val(k)); if (!norm) top = Math.max(top, lv);
+  F.ys = ease(F.ys, top * (norm ? 1.08 : 1.25), 5);
+  if (title) txt(title, x + w / 2, y - 22, { size: fs + 8, weight: 700, align: 'center', color: col });
+  const g = chart({ x: x, y: y, w: w, h: h, xmin: 0, xmax: RANGE, ymin: 0, ymax: F.ys, xstep: 0.2, fs: fs, yint: !norm,
+    xlabel: 'delay τ', ylabel: norm ? 'g two of τ' : 'counts', yoff: fs * 3.4 });
+  const bw = g.X(BW) - g.X(0);
+  for (let k = 0; k < NB; k++) { const v = val(k); if (!v) continue; ctx.fillStyle = alpha(col, .6); ctx.fillRect(g.X(k * BW) + 1, g.Y(v), Math.max(1, bw - 2), g.Y(0) - g.Y(v)); }
+  const ref = norm ? 1 : lv;
+  line(x, g.Y(ref), x + w, g.Y(ref), C.ink, 2.5, [9, 6]);
+  txtBg(norm ? '1' : 'random', x + w - 6, g.Y(ref) - 8, { size: fs + 1, weight: 700, align: 'right' });
+  return g;
+}
+function drawHistPanel() {
+  const F = F3[TYPES.indexOf(A.type)];
+  drawHist(F, 1200, 220, 340, 380, 17, false, 'delays: ' + A.type + ' light');
+  txt('dashed: photons at unrelated random times', 1370, 690, { size: 17, align: 'center', color: C.muted });
+}
+function drawThree(aG2) {
+  const norm = aG2 > 0.5;
+  TYPES.forEach((t, i) => {
+    const F = F3[i], px = 40 + i * 520, pw = 500, col = LCOL[t];
+    rrect(px, 170, pw, 700, 14, C.panel2, alpha(col, .7), 2);
+    txt(t + ' light', px + pw / 2, 212, { size: 28, weight: 700, align: 'center', color: col });
+    txt(LSUB[t], px + pw / 2, 242, { size: 19, align: 'center', color: C.muted });
+    drawHist(F, px + 90, 290, pw - 150, 380, 17, norm, null);
+    const lv = level(F), ok = lv >= 400;
+    if (!norm) txt(['peak at τ = 0', 'flat', 'dip at τ = 0'][i], px + pw / 2, 800, { size: 28, weight: 700, align: 'center', color: col });
+    else group(aG2, () => {
+      txt('g two of zero  =', px + 60, 800, { size: 24, weight: 700 });
+      txt(ok ? (F.hist[0] / lv).toFixed(1) : '...', px + pw - 60, 800, { size: 40, weight: 700, mono: true, align: 'right', color: col });
+      txt(['> 1  bunched', '≈ 1  random', '< 1  antibunched'][i], px + pw / 2, 846, { size: 24, weight: 700, align: 'center', color: col });
+    });
+  });
+}
+
+function sceneInit() { slowReset(); fastReset(); }
+function sceneStep(dt) {
+  if (cur === 0) slowAdvance(A.spd * dt, true);
+  else if (cur <= 3) slowAdvance(A.spd * dt, false);
+  else runFast(dt);
+  const k = dt * 3;
+  for (const f of ['fx1', 'fx2', 'fxCo', 'fxMiss']) SL[f] = Math.max(0, SL[f] - k * (f === 'fxCo' || f === 'fxMiss' ? 0.5 : 1));
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aOne = a('one'), aTwo = a('two'), aL1 = a('linesOne'), aL2 = a('linesTwo'), aCo = a('co'), aTau = a('tau');
+  const aP1 = a('panelOne'), aP2 = a('panelTwo'), aPC = a('panelCo'), aPT = a('panelTau'), aH = a('hist'), a3 = a('three'), aG = a('g2');
+  group(aOne, () => drawSetup(false));
+  group(aTwo, () => drawSetup(true));
+  group(aL1, drawLinesOne);
+  group(aL2, () => drawLinesTwo(aCo, aTau));
+  group(aP1, drawPanelOne); group(aP2, drawPanelTwo); group(aPC, drawPanelCo); group(aPT, drawPanelTau);
+  group(aH, drawHistPanel);
+  group(a3, () => drawThree(aG));
+}
+const SIM_HOOK = () => ({ A, get SL() { return SL; }, get F3() { return F3; }, slowReset, slowAdvance, fastReset, fastAdvance, level, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

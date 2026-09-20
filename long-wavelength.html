@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Long Wavelength</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>The long wavelength approximation and the electric dipole Hamiltonian</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Long Wavelength animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'Long Wavelength', heading: 'The long wavelength approximation and the electric dipole Hamiltonian' };
+
+/* ================= geometry and state =================
+   The picture is to scale: the Bohr radius a0 is A0 px, the wavelength is ratio * A0 px.
+   x is measured from the nucleus along the direction of travel k; the field E points along y.
+   The electron is drawn at |r - r0| = a0, at 60 degrees from k, so that its offset along k is a0 / 2
+   and its offset along E is a0 sin 60. The field E(x, t) / E0 = cos(omega t - k x). */
+const A0 = 100, X0 = 540, Y0 = 520, AMP = 120, XL = 60, XR = 1060;
+const ANG = Math.PI / 3, DX = A0 * Math.cos(ANG), DY = A0 * Math.sin(ANG);
+const P = { ratio: 4, phase: 0, touched: -1e9, rate: 0.1 };      // rate: cycles per second of the phase while playing
+const lam = () => P.ratio * A0;
+const field = (x, t) => Math.cos((t == null ? P.phase : t) - 2 * Math.PI * x / lam());
+function values() {
+  const En = field(0), Ee = field(DX);
+  return { ratio: P.ratio, phase: P.phase, En: En, Ee: Ee, diff: Ee - En,
+    maxDiff: 2 * Math.sin(Math.PI * DX / lam()),                // largest |E(r) - E(r0)| / E0 over one period
+    energy: Math.sin(ANG) * En };                               // -D . E(r0, t) / (e a0 E0), with q = -e
+}
+const fmtRatio = v => v < 10 ? v.toFixed(1) : String(Math.round(v));
+const sgn = v => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(2);
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'The atom', cap: '1. The atom',
+    sub: 'A [hydrogen-like atom]: a nucleus at the position {r₀} and one electron of charge {q} at the position {r}. The electron cloud has the size of the [Bohr radius] {a₀ ≈ 0.5 Å}.',
+    show: ['atom'], ctrl: [] },
+  { short: 'The plane wave', cap: '2. The plane wave',
+    sub: 'The atom sits in a plane electromagnetic wave with the electric field {E(r, t) = E₀ cos(ωt − k · r)}, drawn on the same scale as the atom. {λ} is the [wavelength], {k} the [wave vector] along the direction of travel, and the arrows show the field at the phase {ωt}.',
+    show: ['atom', 'wave', 'inset'], ctrl: ['ratio', 'phase'] },
+  { short: 'Field at two points', cap: '3. The field at the nucleus and at the electron',
+    sub: 'The nucleus is in the field {E(r₀, t)}, the electron in the field {E(r, t)}. The two differ because the electron is a distance {|r − r₀| ≈ a₀} from the nucleus and the wave changes along its direction of travel. The larger the ratio {λ / a₀}, the smaller the difference.',
+    show: ['atom', 'wave', 'inset', 'fields', 'compare'], ctrl: ['ratio', 'phase'] },
+  { short: 'Long wavelength', cap: '4. The long wavelength approximation',
+    sub: 'The dimensions of the atom are much smaller than the wavelength, {λ ≫ |r − r₀|}: for visible light {λ / a₀ ≈ 10⁴}. The field then has the same value over the whole atom, {E(r, t) ≈ E(r₀, t)}, and only the field at the nucleus, {E(r₀, t)}, enters the Hamiltonian.',
+    show: ['atom', 'wave', 'inset', 'fields', 'compare', 'approx'], ctrl: ['ratio', 'phase'] },
+  { short: 'Dipole energy', cap: '5. The electric dipole moment and the dipole energy',
+    sub: 'The [electric dipole moment] of the atom is {D = q (r − r₀)}, the charge of the electron times its displacement from the nucleus. Because {q} is negative, D points from the electron to the nucleus. The energy of the dipole in the field at the nucleus is {−D · E(r₀, t)}, the [electric dipole Hamiltonian].',
+    show: ['atom', 'wave', 'inset', 'fields', 'compare', 'approx', 'dipole', 'energy'], ctrl: ['ratio', 'phase'] },
+  { short: 'The two parts of H', cap: '6. The two parts of the Hamiltonian',
+    sub: 'In the long wavelength approximation the Hamiltonian is {H = H₀ + Hᵢ}. The [atomic Hamiltonian] {H₀ = p² / 2m + V(r)}, kinetic energy plus Coulomb potential, describes the properties of the atom. The [interaction Hamiltonian] {Hᵢ = −D · E(r₀, t)} describes the interaction with the electromagnetic field.',
+    show: ['atom', 'wave', 'inset', 'fields', 'compare', 'approx', 'dipole', 'energy', 'ham'], ctrl: ['ratio', 'phase'] }
+];
+STEPS[1].enter = STEPS[2].enter = () => { if (P.ratio >= 1000) P.ratio = 4; };
+STEPS[3].enter = STEPS[4].enter = STEPS[5].enter = () => { if (P.ratio < 1000) P.ratio = 10000; };
+const CTRL = {
+  ratio: { kind: 'log', label: 'wavelength  λ / a₀', min: 1, max: 10000, get: () => P.ratio, set: v => { P.ratio = v; }, fmt: fmtRatio },
+  phase: { kind: 'range', label: 'field phase  ωt', min: 0, max: 360, step: 1,
+    get: () => Math.round(P.phase * 180 / Math.PI) % 360,
+    set: v => { P.phase = v * Math.PI / 180; P.touched = performance.now(); }, fmt: v => v + '°' }
+};
+
+/* ================= drawing ================= */
+function fieldArrow(x, y, v, col) {
+  const len = AMP * v;
+  if (Math.abs(len) < 10) { dot(x, y, 5, col); return; }
+  arrow(x, y, x, y - len, col, 4.5, 14);
+}
+function drawWave(special) {
+  const L = lam(), sp = Math.min(100, Math.max(25, L / 8));
+  line(XL, Y0, XR, Y0, C.line, 1.5);
+  ctx.beginPath();
+  for (let x = XL; x <= XR; x += 4) { const y = Y0 - AMP * field(x - X0); x === XL ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+  ctx.strokeStyle = alpha(C.photon, .75); ctx.lineWidth = 2.5; ctx.stroke();
+  for (let x = X0 - Math.ceil((X0 - XL) / sp) * sp; x <= XR; x += sp) {
+    if (x < XL) continue;
+    if (special && Math.abs(x - X0 - DX) < 6) continue;
+    const v = field(x - X0); if (Math.abs(v) * AMP < 12) continue;
+    arrow(x, Y0, x, Y0 - AMP * v, alpha(C.photon, .6), 2, 9);
+  }
+  arrow(XL + 20, 330, XL + 130, 330, C.ink, 2.5, 12);
+  txt('direction of travel, k', XL + 145, 337, { size: 19, weight: 700, color: C.ink });
+  txt('E along the arrows', XR, 337, { size: 19, weight: 700, align: 'right', color: C.photonTxt });
+  if (L <= XR - X0) {
+    bracket(X0, X0 + L, 672, 'λ', C.photonTxt, 20);
+    txt('λ = ' + fmtRatio(P.ratio) + ' a₀', XL + 10, 700, { size: 20, weight: 700, color: C.photonTxt });
+  } else txt('λ = ' + fmtRatio(P.ratio) + ' a₀,  the picture is 10 a₀ wide', XL + 10, 700, { size: 20, weight: 700, color: C.photonTxt });
+}
+function drawAtom() {
+  const g = ctx.createRadialGradient(X0, Y0, 0, X0, Y0, A0);
+  g.addColorStop(0, alpha(C.rand, .32)); g.addColorStop(1, alpha(C.rand, .05));
+  ctx.beginPath(); ctx.arc(X0, Y0, A0, 0, 7); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); ctx.arc(X0, Y0, A0, 0, 7); ctx.strokeStyle = alpha(C.rand, .55); ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 5]); ctx.stroke(); ctx.setLineDash([]);
+  const ax = X0 + A0 * Math.SQRT1_2, ay = Y0 + A0 * Math.SQRT1_2;
+  line(X0, Y0, ax, ay, C.muted, 1.5, [4, 4]);
+  txtBg('a₀', (X0 + ax) / 2 + 16, (Y0 + ay) / 2 + 2, { size: 20, weight: 700, color: C.muted });
+  dot(X0, Y0, 10, C.ink);
+  txt('+', X0, Y0 + 6, { size: 17, weight: 700, align: 'center', color: C.panel });
+  dot(X0 + DX, Y0 - DY, 7, C.rand, true);
+  txtBg('nucleus, r₀', X0 - 18, Y0 + 32, { size: 19, weight: 700, align: 'right', color: C.ink });
+  txtBg('electron, r', X0 + DX + 18, Y0 - DY + 32, { size: 19, weight: 700, color: C.rand });
+}
+function drawFieldArrows() {
+  const v = values();
+  fieldArrow(X0, Y0, v.En, C.d1); fieldArrow(X0 + DX, Y0 - DY, v.Ee, C.d2);
+  txtBg('E(r₀, t)', X0 - 18, Y0 - 20, { size: 19, weight: 700, align: 'right', color: C.d1 });
+  txtBg('E(r, t)', X0 + DX + 18, Y0 - DY - 20, { size: 19, weight: 700, color: C.d2 });
+}
+function drawDipole() {
+  const ex = X0 + DX, ey = Y0 - DY, ux = -Math.cos(ANG), uy = Math.sin(ANG);     // unit vector from the electron to the nucleus
+  arrow(ex + ux * 9, ey + uy * 9, X0 - ux * 13, Y0 - uy * 13, C.bunch, 4, 14);
+  txtBg('D = q (r − r₀)', (X0 + ex) / 2 - 14, (Y0 + ey) / 2 - 2, { size: 20, weight: 700, align: 'right', color: C.bunch });
+}
+function drawApprox() {
+  txtBg('λ ≫ |r − r₀|,  so  E(r, t) ≈ E(r₀, t)', XL + 20, 385, { size: 22, weight: 700, color: C.ok });
+}
+function drawInset() {
+  const x = XL, y = 185, w = XR - XL, h = 80, ym = y + 50, am = 22, x1 = x + 30, w1 = w - 60;
+  rrect(x, y, w, h, 10, C.panel2, C.line, 1.2);
+  const t0 = 0.25 - 1 / P.ratio, t1 = 0.25 + 1 / P.ratio;
+  const bx = x1 + Math.max(0, t0) * w1, bw = Math.max(3, (Math.min(1, t1) - Math.max(0, t0)) * w1);
+  ctx.fillStyle = alpha(C.rand, .18); ctx.fillRect(bx - (bw < 4 ? 1 : 0), y + 6, bw + (bw < 4 ? 2 : 0), h - 12);
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) { const t = i / 200, X = x1 + t * w1, Y = ym - am * Math.cos(P.phase - 2 * Math.PI * (t - 0.25)); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+  ctx.strokeStyle = alpha(C.photon, .8); ctx.lineWidth = 2; ctx.stroke();
+  line(x1, ym, x1 + w1, ym, C.line, 1);
+  dot(x1 + 0.25 * w1, ym, 5, C.ink);
+  txt('one full wavelength λ', x + 12, y + 24, { size: 17, weight: 700, color: C.muted });
+  txtBg('atom, 2 a₀', x1 + 0.25 * w1, y + h - 10, { size: 17, weight: 700, align: 'center', color: C.rand });
+}
+const RX = 1120, RX2 = 1560;
+function drawCompare() {
+  const v = values(), by = 350, xa = RX + 40, xb = RX + 95, xc = RX + 150;
+  txt('the two fields side by side', RX, 205, { size: 18, weight: 700, color: C.muted });
+  line(RX + 10, by, RX + 200, by, C.line, 1.5);
+  const ya = by - AMP * v.En, yb = by - AMP * v.Ee;
+  line(xa, ya, xc + 8, ya, C.d1, 1, [4, 4]); line(xb, yb, xc + 8, yb, C.d2, 1, [4, 4]);
+  fieldArrow(xa, by, v.En, C.d1); fieldArrow(xb, by, v.Ee, C.d2);
+  if (Math.abs(ya - yb) >= 3) { line(xc, ya, xc, yb, C.hot, 4); line(xc - 6, ya, xc + 6, ya, C.hot, 2); line(xc - 6, yb, xc + 6, yb, C.hot, 2); }
+  else dot(xc, ya, 4, C.hot);
+  txt('difference', xc + 16, (ya + yb) / 2 + 7, { size: 18, weight: 700, color: C.hot });
+  txt('E(r₀, t)', xa, by + AMP + 30, { size: 18, weight: 700, align: 'center', color: C.d1 });
+  txt('E(r, t)', xb, by + AMP + 54, { size: 18, weight: 700, align: 'center', color: C.d2 });
+  let y = 570;
+  const row = (k, val, col) => { txt(k, RX, y, { size: 20, color: C.muted }); txt(val, RX2, y, { size: 24, weight: 700, mono: true, align: 'right', color: col || C.ink }); y += 38; };
+  row('λ / a₀', fmtRatio(P.ratio));
+  row('E(r₀, t) / E₀', sgn(v.En), C.d1);
+  row('E(r, t) / E₀', sgn(v.Ee), C.d2);
+  row('difference / E₀', Math.abs(v.diff).toFixed(4), C.hot);
+  row('largest difference / E₀', v.maxDiff.toFixed(4), C.hot);
+  txt('largest difference over one period: 2 sin(π Δx / λ) E₀,', RX, y, { size: 17, color: C.muted });
+  txt('Δx = a₀ / 2 is the offset of the electron along k', RX, y + 22, { size: 17, color: C.muted });
+}
+function drawEnergy(aH) {
+  const v = values(), x = 610, y = 722, w = 450, h = 148;
+  rrect(x, y, w, h, 12, alpha(C.panel, .9), C.bunch, 2);
+  group(1 - aH, () => txt('energy of the dipole in the field at the nucleus', x + 20, y + 32, { size: 17, weight: 700, color: C.muted }));
+  group(aH, () => txt('interaction Hamiltonian: atom and field', x + 20, y + 32, { size: 17, weight: 700, color: C.muted }));
+  let fx = x + 20;
+  if (aH > 0.01) group(aH, () => {
+    const o = { size: 26, weight: 700, color: C.bunch };
+    fx += subTxt('H', 'I', fx, y + 72, o); fx += txt(' = ', fx, y + 72, o);
+  });
+  txt('−D · E(r₀, t)', fx, y + 72, { size: 26, weight: 700, color: C.bunch });
+  txt('now:  ' + sgn(v.energy) + ' e a₀ E₀', x + 20, y + 106, { size: 21, weight: 700, mono: true });
+  txt('e a₀ ≈ 8 × 10⁻³⁰ C m is the size of D', x + 20, y + 134, { size: 17, color: C.muted });
+}
+function drawHam() {
+  const x = 60, y = 722, w = 480, h = 148;
+  rrect(x, y, w, h, 12, alpha(C.panel, .9), C.term, 2);
+  txt('atomic Hamiltonian: the atom alone', x + 20, y + 32, { size: 17, weight: 700, color: C.muted });
+  const o = { size: 26, weight: 700, color: C.term };
+  let fx = x + 20;
+  fx += subTxt('H', '0', fx, y + 72, o);
+  txt(' = p² / 2m + V(r)', fx, y + 72, o);
+  txt('kinetic energy plus Coulomb potential V(r)', x + 20, y + 106, { size: 19, weight: 600 });
+  txt('its eigenstates are the energy levels of the atom', x + 20, y + 134, { size: 17, color: C.muted });
+  txt('+', 575, y + 82, { size: 34, weight: 700, align: 'center', color: C.muted });
+  let sx = RX;
+  sx += txt('H = ', sx, 830, { size: 30, weight: 700 });
+  sx += subTxt('H', '0', sx, 830, { size: 30, weight: 700, color: C.term });
+  sx += txt(' + ', sx, 830, { size: 30, weight: 700 });
+  subTxt('H', 'I', sx, 830, { size: 30, weight: 700, color: C.bunch });
+  txt('valid not only for hydrogen but in general', RX, 862, { size: 17, color: C.muted });
+}
+
+function sceneInit() {}
+function sceneStep(dt) {
+  if (performance.now() - P.touched < 1500) return;
+  P.phase = (P.phase + 2 * Math.PI * P.rate * dt) % (2 * Math.PI);
+  try { syncs.forEach(f => f()); } catch (e) {}
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aAtom = a('atom'), aWave = a('wave'), aIns = a('inset'), aF = a('fields'), aCmp = a('compare');
+  const aAp = a('approx'), aD = a('dipole'), aE = a('energy'), aH = a('ham');
+  group(aWave, () => drawWave(aF > 0.5));
+  group(aAtom, drawAtom);
+  group(aF, drawFieldArrows);
+  group(aD, drawDipole);
+  group(aAp, drawApprox);
+  group(aIns, drawInset);
+  group(aCmp, drawCompare);
+  group(aE, () => drawEnergy(aH));
+  group(aH, drawHam);
+}
+const SIM_HOOK = () => ({ P, values, field, lam, A0, DX, DY, ANG, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

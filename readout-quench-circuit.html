@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The quench and readout circuit</title>
+<script>
+  /* apply theme before paint: from ?theme= (set by the deck) */
+  (function () {
+    var m = (location.search || '').match(/theme=(dark|light)/);
+    document.documentElement.setAttribute('data-theme', m ? m[1] : 'light');
+  })();
+</script>
+<style>
+  :root {
+    --bg: #e9e6df;
+    --panel: #f4f2ec;
+    --panel2: #ded8c8;
+    --ink: #23272e;
+    --muted: #5d6570;
+    --line: #c6c0b2;
+    --edge: #5a5346;
+    --current: #15803d;   /* green: SPAD current */
+    --bias: #b7791f;       /* amber: bias voltage */
+    --output: #2d5fb8;     /* blue: circuit output */
+    --break: #c0392b;      /* red: breakdown / dead time */
+    --wire: #8a8272;
+  }
+  :root[data-theme="dark"] {
+    --bg: #171b20;
+    --panel: #262b31;
+    --panel2: #313842;
+    --ink: #ebe7dd;
+    --muted: #a1abb5;
+    --line: #3b414a;
+    --edge: #8a8272;
+    --current: #51c77d;
+    --bias: #e3a94e;
+    --output: #6ea3f2;
+    --break: #f06b6b;
+    --wire: #9a9284;
+  }
+  html, body { transition: background-color .3s ease; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 8px 12px 10px;
+  }
+  .bar { width: min(1280px, 98vw); display: flex; align-items: center; gap: 10px; padding: 2px 4px 6px; }
+  .bar .spacer { margin-left: auto; }
+  .bar button {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 14px; font-size: 15px; cursor: pointer;
+  }
+  .bar button:hover { border-color: var(--bias); }
+  .bar button:focus-visible { outline: 2px solid var(--bias); outline-offset: 2px; }
+  .bar button:disabled { opacity: .4; cursor: not-allowed; }
+  .bar .chip { min-width: 32px; padding: 7px 0; text-align: center; font-size: 14px;
+               font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .bar .chip.active { border-color: var(--bias); color: var(--bias); font-weight: 700; }
+  #sendBtn { background: var(--panel2); font-weight: 600; }
+
+  svg.scene { width: min(1280px, 98vw); height: auto; max-height: calc(100vh - 58px); display: block; }
+
+  .title { font-size: 25px; font-weight: 800; fill: var(--ink); }
+  .lane  { font-size: 15px; fill: var(--muted); }
+  .small { font-size: 13px; fill: var(--muted); }
+  .tick  { font-size: 12px; fill: var(--muted); }
+  .cardT { font-size: 16.5px; font-weight: 700; fill: var(--ink); }
+  .cardTa{ font-size: 16.5px; font-weight: 700; fill: #f7f4ec; }
+  .narT  { font-size: 20px; font-weight: 700; fill: var(--ink); }
+  .narL  { font-size: 17px; fill: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="bar" role="group" aria-label="step controls">
+  <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+  <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+  <button id="next" type="button" aria-label="next step">&#9654;</button>
+  <span id="chips" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+  <span class="spacer"></span>
+  <button id="sendBtn" type="button">Send one photon</button>
+</div>
+
+<svg class="scene" viewBox="0 0 1280 764" role="img"
+     aria-label="The quench and readout circuit and its four jobs: detect the leading edge, output a low-jitter pulse, lower the bias to quench, restore the bias above breakdown">
+
+  <text class="title" x="30" y="34">The quench and readout circuit &#8212; four jobs</text>
+
+  <!-- four job cards -->
+  <g id="cards"></g>
+
+  <!-- ================= left: the circuit ================= -->
+  <g id="circuit">
+    <!-- conduction loop (rectangle) -->
+    <path id="loopPath" d="M200 260 H430 V566 H200 Z" fill="none" stroke="var(--wire)" stroke-width="3.5"/>
+
+    <!-- bias supply on the left wire -->
+    <line x1="182" y1="398" x2="218" y2="398" stroke="var(--ink)" stroke-width="4"/>
+    <line x1="190" y1="414" x2="210" y2="414" stroke="var(--ink)" stroke-width="2.4"/>
+    <text class="small" x="150" y="392" text-anchor="end">V bias</text>
+    <text class="small" x="150" y="410" text-anchor="end">&gt; breakdown</text>
+
+    <!-- SPAD (photodiode) on the right wire -->
+    <g>
+      <polygon points="410,300 450,300 430,332" fill="none" stroke="var(--ink)" stroke-width="3"/>
+      <line x1="410" y1="332" x2="450" y2="332" stroke="var(--ink)" stroke-width="3"/>
+      <text class="small" x="466" y="312" fill="var(--ink)" font-weight="700">SPAD</text>
+      <text class="small" x="466" y="330">photodiode</text>
+    </g>
+
+    <!-- sense node -->
+    <circle id="senseDot" cx="430" cy="452" r="5" fill="var(--wire)"/>
+    <text class="small" x="430" y="486" text-anchor="middle">sense node</text>
+
+    <!-- tap wire to the readout box -->
+    <line x1="430" y1="452" x2="500" y2="452" stroke="var(--wire)" stroke-width="3"/>
+
+    <!-- readout & quench circuit box -->
+    <rect id="rbox" x="500" y="404" width="188" height="96" rx="10"
+          fill="var(--panel)" stroke="var(--line)" stroke-width="2"/>
+    <text id="rboxT1" class="small" x="594" y="446" text-anchor="middle" fill="var(--ink)" font-weight="700" font-size="15">readout &amp;</text>
+    <text id="rboxT2" class="small" x="594" y="466" text-anchor="middle" fill="var(--ink)" font-weight="700" font-size="15">quench circuit</text>
+    <!-- detect lamp on the box -->
+    <circle id="lamp" cx="520" cy="424" r="7" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.5"/>
+
+    <!-- control line: the circuit sets the bias -->
+    <path d="M594 404 V300 H430" fill="none" stroke="var(--wire)" stroke-width="2.2" stroke-dasharray="5 4"/>
+    <text class="small" x="606" y="352">sets the bias</text>
+
+    <!-- output wire and terminal -->
+    <line id="outWire" x1="688" y1="452" x2="742" y2="452" stroke="var(--wire)" stroke-width="3"/>
+    <circle cx="742" cy="452" r="6" fill="none" stroke="var(--output)" stroke-width="2.4"/>
+    <text class="small" x="742" y="436" text-anchor="middle" fill="var(--output)" font-weight="700">output</text>
+
+    <!-- instantaneous bias meter (far left) -->
+    <g>
+      <rect x="70" y="300" width="16" height="170" rx="3" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.4"/>
+      <rect id="biasFill" x="70" y="300" width="16" height="170" fill="var(--bias)"/>
+      <line id="biasBreak" x1="62" y1="360" x2="94" y2="360" stroke="var(--break)" stroke-width="2"/>
+      <text class="small" x="78" y="292" text-anchor="middle">diode V</text>
+    </g>
+
+    <!-- moving current dots + output dot -->
+    <g id="curDots"></g>
+    <g id="outDots"></g>
+    <!-- photon glyph -->
+    <g id="photonG" opacity="0">
+      <line x1="0" y1="0" x2="46" y2="34" stroke="var(--bias)" stroke-width="3"/>
+      <text class="small" x="-6" y="-4" text-anchor="end" fill="var(--bias)" font-weight="700">photon</text>
+    </g>
+  </g>
+
+  <!-- ================= right: the oscilloscope ================= -->
+  <g id="scope">
+    <!-- dead-time band (drawn first, behind) -->
+    <rect id="deadBand" x="0" y="196" width="0" height="392" fill="var(--break)" opacity="0.10"/>
+    <text id="deadLab" class="small" x="0" y="212" text-anchor="middle" fill="var(--break)" font-weight="700" opacity="0">dead time</text>
+
+    <!-- lane labels + baselines are injected by script -->
+    <g id="laneBases"></g>
+
+    <!-- waveforms -->
+    <path id="waveI" fill="none" stroke="var(--current)" stroke-width="2.8"/>
+    <path id="waveV" fill="none" stroke="var(--bias)" stroke-width="2.8"/>
+    <path id="waveO" fill="none" stroke="var(--output)" stroke-width="2.8"/>
+
+    <!-- breakdown reference line on the bias lane -->
+    <line id="vbreak" stroke="var(--break)" stroke-width="1.8" stroke-dasharray="5 4"/>
+    <text id="vbreakLab" class="tick" fill="var(--break)" text-anchor="end">breakdown</text>
+
+    <!-- time markers -->
+    <g id="tmarks"></g>
+
+    <!-- moving time cursor -->
+    <line id="cursor" stroke="var(--ink)" stroke-width="1.6" opacity="0.45"/>
+    <g id="cursorDots"></g>
+  </g>
+
+  <!-- ================= narration ================= -->
+  <text id="narT" class="narT" x="30" y="686"></text>
+  <text id="narL1" class="narL" x="30" y="714"></text>
+  <text id="narL2" class="narL" x="30" y="740"></text>
+</svg>
+
+<script>
+(function () {
+  "use strict";
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function $(id){ return document.getElementById(id); }
+  function mk(t,a){ var e=document.createElementNS(SVGNS,t); for(var k in a) e.setAttribute(k,a[k]); return e; }
+  function clear(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+
+  /* ---------- scope geometry ---------- */
+  var X0=760, X1=1240;
+  function X(t){ return X0 + t*(X1-X0); }
+  var LANES = {
+    I: { top:210, base:300, label:'SPAD current' },
+    V: { top:345, base:445, label:'bias on the diode' },
+    O: { top:490, base:582, label:'circuit output' }
+  };
+  function Y(l, val){ return l.base - val*(l.base-l.top); }
+
+  /* key times of one detection cycle */
+  var TP=0.16, TQ=0.54, TR=0.82;
+  var VHI=0.90, VLO=0.26, VB=0.58;   /* bias lane: high, low, breakdown level */
+
+  function curI(t){
+    if(t<TP) return 0;
+    if(t<TP+0.03) return (t-TP)/0.03;
+    if(t<TQ) return 1;
+    if(t<TQ+0.025) return 1-(t-TQ)/0.025;
+    return 0;
+  }
+  function curV(t){
+    if(t<TQ) return VHI;
+    if(t<TQ+0.05) return VHI + (VLO-VHI)*((t-TQ)/0.05);
+    if(t<TQ+0.14) return VLO;
+    if(t<TR) return VLO + (VHI-VLO)*((t-(TQ+0.14))/(TR-(TQ+0.14)));
+    return VHI;
+  }
+  function curO(t){
+    var d=TP+0.03, r=0.012, w=0.05, A=0.82;
+    if(t<d) return 0;
+    if(t<d+r) return A*(t-d)/r;
+    if(t<d+r+w) return A;
+    if(t<d+r+w+r) return A*(1-(t-(d+r+w))/r);
+    return 0;
+  }
+
+  /* ---------- static scope furniture ---------- */
+  (function(){
+    var lb=$('laneBases');
+    for(var k in LANES){ var l=LANES[k];
+      lb.appendChild(mk('text',{x:X0, y:l.top-8, 'class':'lane'})).textContent=l.label;
+      lb.appendChild(mk('line',{x1:X0, y1:l.base, x2:X1, y2:l.base, stroke:'var(--line)','stroke-width':1.4}));
+    }
+    var vby=Y(LANES.V,VB);
+    var vl=$('vbreak'); vl.setAttribute('x1',X0); vl.setAttribute('x2',X1); vl.setAttribute('y1',vby); vl.setAttribute('y2',vby);
+    var vbl=$('vbreakLab'); vbl.setAttribute('x',X1); vbl.setAttribute('y',vby-5);
+
+    var tm=$('tmarks');
+    [[TP,'photon'],[TQ,'quench'],[TR,'restore']].forEach(function(m){
+      tm.appendChild(mk('line',{x1:X(m[0]),y1:196,x2:X(m[0]),y2:588,stroke:'var(--line)','stroke-width':1.2,'stroke-dasharray':'3 4'}));
+      tm.appendChild(mk('text',{x:X(m[0]),y:604,'class':'tick','text-anchor':'middle'})).textContent=m[1];
+    });
+    // dead-time band position (static)
+    var db=$('deadBand'); db.setAttribute('x',X(TQ)); db.setAttribute('width',X(TR)-X(TQ));
+    $('deadLab').setAttribute('x',(X(TQ)+X(TR))/2);
+  })();
+
+  /* ---------- job cards ---------- */
+  var JOBS=[
+    ['1','Detect the','leading edge'],
+    ['2','Output pulse,','low jitter'],
+    ['3','Lower the bias','to quench'],
+    ['4','Restore V','above breakdown']
+  ];
+  var cardEls=[];
+  (function(){
+    var g=$('cards'), x0=30, y=56, w=286, gap=17, h=76;
+    for(var i=0;i<4;i++){
+      var x=x0+i*(w+gap);
+      var rect=mk('rect',{x:x,y:y,width:w,height:h,rx:11,fill:'var(--panel)',stroke:'var(--line)','stroke-width':1.6});
+      var bcirc=mk('circle',{cx:x+30,cy:y+38,r:17,fill:'var(--panel2)',stroke:'var(--line)','stroke-width':1.6});
+      var bnum=mk('text',{x:x+30,y:y+44,'text-anchor':'middle','font-size':18,'font-weight':800,fill:'var(--ink)'}); bnum.textContent=JOBS[i][0];
+      var t1=mk('text',{x:x+58,y:y+34,'class':'cardT'}); t1.textContent=JOBS[i][1];
+      var t2=mk('text',{x:x+58,y:y+56,'class':'cardT'}); t2.textContent=JOBS[i][2];
+      g.appendChild(rect); g.appendChild(bcirc); g.appendChild(bnum); g.appendChild(t1); g.appendChild(t2);
+      cardEls.push({rect:rect,bcirc:bcirc,bnum:bnum,t1:t1,t2:t2});
+    }
+  })();
+  function setActiveCard(j){
+    for(var i=0;i<4;i++){
+      var c=cardEls[i], on=(i===j);
+      c.rect.setAttribute('fill', on?'var(--output)':'var(--panel)');
+      c.rect.setAttribute('stroke', on?'var(--output)':'var(--line)');
+      c.bcirc.setAttribute('fill', on?'#f7f4ec':'var(--panel2)');
+      c.bnum.setAttribute('fill', on?'var(--output)':'var(--ink)');
+      c.t1.setAttribute('class', on?'cardTa':'cardT');
+      c.t2.setAttribute('class', on?'cardTa':'cardT');
+    }
+  }
+
+  /* ---------- steps ---------- */
+  var STEPS=[
+    {t:0.10, job:-1, title:'Above breakdown, ready',
+     lines:['The SPAD is reverse biased above the breakdown voltage. No current flows,',
+            'and the circuit waits for a photon.']},
+    {t:0.30, job:0, title:'① Detect the leading edge',
+     lines:['A photon starts a self-sustaining avalanche and the current rises in under 1 ns.',
+            'A comparator triggers on this fast leading edge, so the circuit registers the photon.']},
+    {t:0.42, job:1, title:'② Output pulse, low jitter',
+     lines:['The circuit emits one standardized pulse, locked to the avalanche onset with a small, fixed delay.',
+            'Timing jitter is the shot-to-shot spread of that delay; the circuit keeps it minimal.']},
+    {t:0.62, job:2, title:'③ Lower the bias to quench',
+     lines:['The circuit pulls the bias below the breakdown voltage. Impact ionization can no longer',
+            'sustain the chain, so the avalanche current falls to zero.']},
+    {t:0.86, job:3, title:'④ Restore the bias above breakdown',
+     lines:['The circuit charges the bias back above the breakdown voltage.',
+            'The SPAD is ready to detect the next photon.']},
+    {t:0.985, job:-1, title:'Dead time, then ready',
+     lines:['During quench and restore the SPAD sits below breakdown and cannot detect a photon.',
+            'This blind interval is the dead time; it limits the maximum count rate.']}
+  ];
+
+  /* ---------- state ---------- */
+  var idx=0, cur=STEPS[0].t, target=STEPS[0].t, playing=false, frozen=false, phase=0, outPhase=0, advTimer=null;
+
+  var chipsEl=$('chips'), chipBtns=[];
+  STEPS.forEach(function(s,i){
+    var b=document.createElement('button'); b.className='chip'; b.textContent=(i+1);
+    b.onclick=function(){ stopPlay(); goto(i); };
+    chipsEl.appendChild(b); chipBtns.push(b);
+  });
+
+  function setNarration(s){
+    $('narT').textContent=s.title;
+    $('narL1').textContent=s.lines[0]||'';
+    $('narL2').textContent=s.lines[1]||'';
+  }
+
+  function goto(i){
+    idx=i; var s=STEPS[i]; target=s.t;
+    if(frozen) cur=target;
+    setActiveCard(s.job); setNarration(s);
+    chipBtns.forEach(function(b,k){ b.classList.toggle('active',k===i); });
+  }
+
+  function scheduleAdvance(){
+    if(advTimer) return;
+    advTimer=setTimeout(function(){
+      advTimer=null;
+      if(!playing) return;
+      var n=(idx+1)%STEPS.length;
+      goto(n);
+    }, 1100);
+  }
+  function play(){ playing=true; $('play').innerHTML='&#10074;&#10074;'; }
+  function stopPlay(){ playing=false; if(advTimer){clearTimeout(advTimer);advTimer=null;} $('play').innerHTML='&#9654;'; }
+
+  /* ---------- drawing ---------- */
+  var loopPath=$('loopPath'), loopLen=loopPath.getTotalLength();
+  var outWireX0=688, outWireX1=742, outWireY=452;
+
+  function wavePath(fn){
+    var d='', first=true, dt=0.004;
+    for(var t=0;t<=cur+1e-9;t+=dt){
+      var tt=Math.min(t,cur);
+      var l = fn===curI?LANES.I : fn===curV?LANES.V : LANES.O;
+      d+=(first?'M':'L')+X(tt).toFixed(1)+' '+Y(l,fn(tt)).toFixed(1)+' ';
+      first=false;
+    }
+    return d;
+  }
+
+  function draw(){
+    // waveforms revealed up to cur
+    $('waveI').setAttribute('d', wavePath(curI));
+    $('waveV').setAttribute('d', wavePath(curV));
+    $('waveO').setAttribute('d', wavePath(curO));
+
+    // time cursor
+    var cx=X(cur);
+    var cs=$('cursor'); cs.setAttribute('x1',cx); cs.setAttribute('x2',cx); cs.setAttribute('y1',196); cs.setAttribute('y2',588);
+    var cd=$('cursorDots'); clear(cd);
+    [[LANES.I,curI(cur),'var(--current)'],[LANES.V,curV(cur),'var(--bias)'],[LANES.O,curO(cur),'var(--output)']].forEach(function(p){
+      cd.appendChild(mk('circle',{cx:cx,cy:Y(p[0],p[1]),r:4.5,fill:p[2],stroke:'var(--bg)','stroke-width':1.5}));
+    });
+
+    // dead-time band emphasis once quench is reached
+    var reached = cur>=TQ-0.001;
+    $('deadBand').setAttribute('opacity', reached?0.20:0.08);
+    $('deadLab').setAttribute('opacity', reached?1:0);
+
+    // instantaneous bias meter (map bias 0..VHI to fill height)
+    var bv=curV(cur), mTop=300, mBot=470;
+    var hh=(mBot-mTop)*Math.max(0,Math.min(1,bv/VHI));
+    var bf=$('biasFill'); bf.setAttribute('y', mBot-hh); bf.setAttribute('height', hh);
+    bf.setAttribute('fill', bv<VB?'var(--break)':'var(--bias)');
+    var byy=mBot-(mBot-mTop)*(VB/VHI); $('biasBreak').setAttribute('y1',byy); $('biasBreak').setAttribute('y2',byy);
+
+    // current dots along the loop while avalanche flows
+    var flowing=curI(cur)>0.25;
+    var cdg=$('curDots'); clear(cdg);
+    if(flowing){
+      phase=(phase+0.010)%1;
+      for(var i=0;i<8;i++){
+        var pt=loopPath.getPointAtLength(((i/8)+phase)%1*loopLen);
+        cdg.appendChild(mk('circle',{cx:pt.x.toFixed(1),cy:pt.y.toFixed(1),r:4.5,fill:'var(--current)',opacity:0.95}));
+      }
+    }
+
+    // output pulse dot travelling the output wire
+    var odg=$('outDots'); clear(odg);
+    var ov=curO(cur);
+    if(ov>0.05){
+      outPhase=(outPhase+0.06)%1;
+      var ox=outWireX0+(outWireX1-outWireX0)*outPhase;
+      odg.appendChild(mk('circle',{cx:ox,cy:outWireY,r:4.5,fill:'var(--output)'}));
+    }
+
+    // detect lamp on the box: lit from detection until restore completes
+    var detected = cur>=TP+0.02 && cur<TR;
+    var lamp=$('lamp');
+    lamp.setAttribute('fill', detected?'var(--output)':'var(--panel2)');
+    lamp.setAttribute('stroke', detected?'var(--output)':'var(--line)');
+
+    // readout box highlight while it is acting
+    $('rbox').setAttribute('stroke', (cur>=TP && cur<=TR)?'var(--output)':'var(--line)');
+    $('rbox').setAttribute('stroke-width', (cur>=TP && cur<=TR)?'2.6':'2');
+
+    // photon glyph near the SPAD around the trigger
+    var pg=$('photonG');
+    if(cur>=TP-0.03 && cur<TP+0.05){
+      pg.setAttribute('opacity','1');
+      pg.setAttribute('transform','translate(360,262)');
+    } else pg.setAttribute('opacity','0');
+  }
+
+  function tick(){
+    if(!frozen){
+      cur += (target-cur)*0.12;
+      if(playing && Math.abs(cur-target)<0.004){ cur=target; scheduleAdvance(); }
+    }
+    draw();
+    if(!frozen) requestAnimationFrame(tick);
+  }
+
+  /* ---------- controls ---------- */
+  $('next').onclick=function(){ stopPlay(); goto(Math.min(idx+1,STEPS.length-1)); };
+  $('prev').onclick=function(){ stopPlay(); goto(Math.max(idx-1,0)); };
+  $('play').onclick=function(){ if(playing) stopPlay(); else { play(); if(idx>=STEPS.length-1) goto(0); } };
+  $('sendBtn').onclick=function(){ stopPlay(); goto(0); play(); };
+
+  /* ---------- theme sync from the deck ---------- */
+  addEventListener('message', function (e) {
+    if (e && e.data && (e.data.theme === 'dark' || e.data.theme === 'light'))
+      document.documentElement.setAttribute('data-theme', e.data.theme);
+  });
+
+  /* ---------- boot ---------- */
+  var shot=(location.search||'').match(/shot=(\d)/);
+  if(shot){
+    frozen=true;
+    goto(Math.max(0,Math.min(STEPS.length-1, parseInt(shot[1],10))));
+    cur=target; phase=0.13; outPhase=0.5;
+    for(var f=0; f<3; f++) draw();
+  } else {
+    var h=parseInt((location.hash||'').slice(1),10);
+    if(Number.isFinite(h)) goto(Math.max(0,Math.min(STEPS.length-1,h))); else goto(0);
+    play();
+    requestAnimationFrame(tick);
+  }
+})();
+</script>
+</body>
+</html>

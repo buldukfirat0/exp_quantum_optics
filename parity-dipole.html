@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parity Dipole</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>Parity and the electric dipole matrix element</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Parity Dipole animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'Parity Dipole', heading: 'Parity and the electric dipole matrix element' };
+
+/* ================= one-dimensional model states =================
+   Eigenfunctions of the one-dimensional harmonic oscillator, x in units of the oscillator length:
+   psi_n(x) = H_n(x) exp(-x^2 / 2) / sqrt(2^n n! sqrt(pi)), parity (-1)^n, real functions.
+   Exact matrix elements: <m|x|n> = sqrt(n/2) for m = n - 1, sqrt((n+1)/2) for m = n + 1, else 0.
+   So <a|x|b> = <0|x|1> = 1/sqrt(2) = 0.7071 and <0|x|0> = <0|x|2> = <1|x|3> = 0. */
+const L = 5, N = 500, DX = 2 * L / N;
+const XS = Array.from({ length: N + 1 }, (_, i) => -L + i * DX);
+function hermite(n, x) {
+  if (n === 0) return 1;
+  let h0 = 1, h1 = 2 * x;
+  for (let k = 1; k < n; k++) { const h2 = 2 * x * h1 - 2 * k * h0; h0 = h1; h1 = h2; }
+  return h1;
+}
+function psi(n, x) {
+  let f = 1; for (let k = 2; k <= n; k++) f *= k;
+  return hermite(n, x) * Math.exp(-x * x / 2) / Math.sqrt(Math.pow(2, n) * f * Math.sqrt(Math.PI));
+}
+const STATES = {
+  a: { n: 0, name: 'a', par: 'even', col: C.d1 },
+  b: { n: 1, name: 'b', par: 'odd', col: C.d2 },
+  c: { n: 2, name: 'c', par: 'even', col: C.rand },
+  d: { n: 3, name: 'd', par: 'odd', col: C.bunch }
+};
+/* pair key: first letter = state a of <b|D|a> (right factor), second letter = state b (left factor) */
+const PAIRS = { aa: ['a', 'a'], bb: ['b', 'b'], ab: ['a', 'b'], ac: ['a', 'c'], bd: ['b', 'd'] };
+const PD = {};                                    // precomputed curves for every pair
+function precompute() {
+  for (const s in STATES) STATES[s].y = XS.map(x => psi(STATES[s].n, x));
+  for (const k in PAIRS) {
+    const s1 = STATES[PAIRS[k][0]], s2 = STATES[PAIRS[k][1]];
+    const f = XS.map((x, i) => s2.y[i] * x * s1.y[i]);
+    const F = new Float64Array(N + 1), pos = new Float64Array(N + 1), neg = new Float64Array(N + 1);
+    for (let i = 1; i <= N; i++) {
+      F[i] = F[i - 1] + (f[i - 1] + f[i]) / 2 * DX;
+      pos[i] = pos[i - 1] + (Math.max(0, f[i - 1]) + Math.max(0, f[i])) / 2 * DX;
+      neg[i] = neg[i - 1] + (Math.min(0, f[i - 1]) + Math.min(0, f[i])) / 2 * DX;
+    }
+    let fm = 0, Fm = 0; for (let i = 0; i <= N; i++) { fm = Math.max(fm, Math.abs(f[i])); Fm = Math.max(Fm, Math.abs(F[i])); }
+    const same = s1.par === s2.par;
+    PD[k] = { s1: s1, s2: s2, f: f, F: F, pos: pos, neg: neg, fmax: fm, Fmax: Fm, same: same, value: F[N],
+      ipar: same ? 'odd' : 'even', diag: PAIRS[k][0] === PAIRS[k][1] };
+  }
+}
+
+/* ================= sweep: the running integral from -L to x ================= */
+const P = { pair: 'ab', spd: 3 };
+const SW = { x: -L, done: false, hold: 0 };
+function sweepReset() { SW.x = -L; SW.done = false; SW.hold = 0; }
+const swIndex = () => Math.max(0, Math.min(N, Math.round((SW.x + L) / DX)));
+function setPair(k) { if (P.pair !== k) { P.pair = k; sweepReset(); } }
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Parity', cap: '1. Parity of the wave functions',
+    sub: 'Two stationary states of a one-dimensional harmonic oscillator, a potential symmetric about {x = 0}. Each state has a definite [parity]: an [even] wave function satisfies {ψ(−x) = ψ(x)}, an [odd] wave function satisfies {ψ(−x) = −ψ(x)}. The dots mark the values at a point {x} and at its mirror point {−x}.',
+    show: ['psi'], ctrl: ['spd'], pair: 'ab' },
+  { short: 'Dipole operator', cap: '2. The electric dipole operator',
+    sub: 'The [electric dipole operator] {D = q(r − r₀)} is the charge times the displacement of the electron from the nucleus. In one dimension {D = q x}. It is odd: at the mirror point {−x} it has the opposite sign.',
+    show: ['psi', 'dip'], ctrl: ['spd'], pair: 'ab' },
+  { short: 'Diagonal element', cap: '3. The diagonal matrix element',
+    sub: 'The [diagonal matrix element] {⟨a|D|a⟩ = q ∫ ψa* x ψa dx} is the area under the [integrand] {ψa* x ψa}, counted negative where the integrand is negative. The probability density {ψa* ψa} is even and {x} is odd, so the integrand is odd: the two halves cancel and {⟨a|D|a⟩ = 0}. An atom in a stationary state has no [permanent dipole moment].',
+    show: ['psi', 'dip', 'integ', 'run', 'result'], ctrl: ['diag', 'spd'], pair: ['aa', 'bb'] },
+  { short: 'Same parity', cap: '4. Same parity: forbidden transition',
+    sub: 'For two different states of the same parity the product {ψb* ψa} is even, so the integrand {ψb* x ψa} is again odd and {⟨b|D|a⟩ = 0}. The light cannot couple the two states through the electric dipole: the transition is [forbidden]. The same holds for the A·p form of the interaction.',
+    show: ['psi', 'dip', 'integ', 'run', 'result'], ctrl: ['pairSame', 'spd'], pair: ['ac', 'bd'] },
+  { short: 'Opposite parity', cap: '5. Opposite parity: allowed transition',
+    sub: 'For two states of opposite parity the product {ψb* ψa} is odd, so the integrand {ψb* x ψa} is even: the two halves have the same sign and add up, and {⟨b|D|a⟩} is nonzero. The transition is [allowed] by parity. Only these off-diagonal elements drive transitions.',
+    show: ['psi', 'dip', 'integ', 'run', 'result'], ctrl: ['spd'], pair: ['ab'] },
+  { short: 'Selection rule', cap: '6. The parity selection rule',
+    sub: 'An electric dipole transition connects only states of opposite parity, and a stationary state has no permanent dipole moment. If {⟨b|D|a⟩ = 0}, the magnetic dipole Hamiltonian, weaker by a factor of about {α = 1/137}, is the leading term of the interaction.',
+    show: ['psi', 'dip', 'integ', 'run', 'table'], ctrl: ['pair', 'spd'], pair: ['ab', 'ac', 'bd'] }
+];
+STEPS.forEach(S => { S.enter = () => { const ok = [].concat(S.pair); if (!ok.includes(P.pair)) P.pair = ok[0]; sweepReset(); }; });
+const CTRL = {
+  spd: { kind: 'log', label: 'sweep speed', min: 0.5, max: 10, get: () => P.spd, set: v => { P.spd = v; }, fmt: v => v.toFixed(1) + ' per s' },
+  diag: { kind: 'seg', label: 'state', get: () => P.pair, set: setPair,
+    options: [['aa', 'state a with itself', C.d1, 'even, n = 0'], ['bb', 'state b with itself', C.d2, 'odd, n = 1']] },
+  pairSame: { kind: 'seg', label: 'the two states', get: () => P.pair, set: setPair,
+    options: [['ac', 'even and even', C.rand, 'a (n = 0) and c (n = 2)'], ['bd', 'odd and odd', C.bunch, 'b (n = 1) and d (n = 3)']] },
+  pair: { kind: 'seg', label: 'the two states', get: () => P.pair, set: setPair,
+    options: [['ab', 'even and odd', C.d2, 'a (n = 0) and b (n = 1)'], ['ac', 'even and even', C.rand, 'a (n = 0) and c (n = 2)'], ['bd', 'odd and odd', C.bunch, 'b (n = 1) and d (n = 3)']] }
+};
+
+/* ================= drawing helpers (local) ================= */
+/* axes for a chart whose y range crosses zero: grid on both sides, a stronger zero line */
+function chart2(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = Math.ceil(o.ymin / ys - 1e-9); k * ys <= o.ymax + 1e-9; k++) {
+    const v = k * ys, yy = Y(v);
+    line(x, yy, x + w, yy, k === 0 ? C.muted : C.grid, k === 0 ? 1.4 : 1);
+    txt(fmtTick(v, ys), x - 15, yy + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    const v = k * xs;
+    if (k !== 0) line(X(v), y, X(v), y + h, C.grid, 1);
+    line(X(v), y + h, X(v), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(v, xs), X(v), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y, x, y + h, C.muted, 1.6); line(x, y + h, x + w, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 36, { size: fs + 1, align: 'center', color: C.muted });
+  return { X: X, Y: Y };
+}
+function curve(g, arr, col, lw, iMax, alphaV) {
+  const m = iMax == null ? N : iMax;
+  ctx.beginPath();
+  for (let i = 0; i <= m; i++) { const px = g.X(XS[i]), py = g.Y(arr[i]); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+  ctx.strokeStyle = alphaV == null ? col : alpha(col, alphaV); ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.stroke();
+}
+/* signed area under arr from index 0 to iMax: positive parts green, negative parts red */
+function shade(g, arr, iMax) {
+  for (const sgn of [1, -1]) {
+    ctx.beginPath(); ctx.moveTo(g.X(XS[0]), g.Y(0));
+    for (let i = 0; i <= iMax; i++) ctx.lineTo(g.X(XS[i]), g.Y(sgn > 0 ? Math.max(0, arr[i]) : Math.min(0, arr[i])));
+    ctx.lineTo(g.X(XS[iMax]), g.Y(0)); ctx.closePath();
+    ctx.fillStyle = alpha(sgn > 0 ? C.ok : C.hot, .38); ctx.fill();
+  }
+}
+/* psi with a subscript; returns the width */
+function psiName(s, x, y, o) { return subTxt('ψ', STATES[s].name, x, y, o); }
+function braket(k) { const p = PD[k]; return '⟨' + p.s2.name + '|D|' + p.s1.name + '⟩'; }
+const zr = v => Math.abs(v) < 5e-4 ? 0 : v;
+const fmt3 = v => { v = zr(v); return (v < 0 ? '−' : v > 0 ? '+' : '') + Math.abs(v).toFixed(3); };
+
+/* ================= layout ================= */
+const CX = 120, CW = 800;                          // left column, three charts sharing the x axis
+const PSI = { y: 210, h: 170 }, DIP = { y: 445, h: 110 }, INT = { y: 620, h: 195 };
+const RX = 1080, RW = 460, RUN = { y: 210, h: 250 };   // right column
+const BOX = { x: 1030, y: 540, w: 530, h: 290 };
+function mirrorLines(g, y0, h) {
+  const xs = SW.x, xm = -SW.x;
+  line(g.X(xs), y0, g.X(xs), y0 + h, C.muted, 1.6, [6, 5]);
+  line(g.X(xm), y0, g.X(xm), y0 + h, alpha(C.muted, .7), 1.2, [3, 5]);
+}
+function mirrorDots(g, arr, col, i) {
+  dot(g.X(XS[i]), g.Y(arr[i]), 6, col); dot(g.X(XS[N - i]), g.Y(arr[N - i]), 6, col);
+  ctx.beginPath(); ctx.arc(g.X(XS[N - i]), g.Y(arr[N - i]), 10, 0, 7); ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function drawPsi() {
+  const p = PD[P.pair], i = swIndex();
+  const g = chart2({ x: CX, y: PSI.y, w: CW, h: PSI.h, xmin: -L, xmax: L, xstep: 1, ymin: -0.8, ymax: 0.8, yticks: 2, fs: 16 });
+  let x = CX;
+  x += txt('wave functions', x, PSI.y - 16, { size: 20, weight: 700, color: C.muted }) + 28;
+  const names = p.diag ? [p.s1] : [p.s1, p.s2];
+  for (const s of names) {
+    x += psiName(s.name, x, PSI.y - 16, { size: 21, weight: 700, color: s.col }) + 8;
+    x += txt(s.par + ', n = ' + s.n + ',  ψ(−x) = ' + (s.par === 'even' ? 'ψ(x)' : '−ψ(x)'), x, PSI.y - 16, { size: 18, color: s.col }) + 34;
+  }
+  mirrorLines(g, PSI.y, PSI.h);
+  for (const s of names) curve(g, s.y, s.col, 3);
+  for (const s of names) mirrorDots(g, s.y, s.col, i);
+  txtBg('x', g.X(SW.x), PSI.y + 22, { size: 17, weight: 700, align: 'center', color: C.muted });
+  if (Math.abs(SW.x) > 0.45) txtBg('−x', g.X(-SW.x), PSI.y + 22, { size: 17, weight: 700, align: 'center', color: C.muted });
+}
+function drawDip() {
+  const i = swIndex();
+  const g = chart2({ x: CX, y: DIP.y, w: CW, h: DIP.h, xmin: -L, xmax: L, xstep: 1, ymin: -5, ymax: 5, yticks: 2, fs: 16 });
+  let x = CX;
+  x += txt('dipole operator', x, DIP.y - 16, { size: 20, weight: 700, color: C.muted }) + 28;
+  x += txt('D = q x', x, DIP.y - 16, { size: 21, weight: 700, color: C.field }) + 8;
+  txt('odd,  D(−x) = −D(x)', x, DIP.y - 16, { size: 18, color: C.field });
+  txt('D / q', CX + 10, DIP.y + 22, { size: 16, color: C.muted });
+  mirrorLines(g, DIP.y, DIP.h);
+  curve(g, XS, C.field, 3);
+  mirrorDots(g, XS, C.field, i);
+}
+function drawInteg() {
+  const p = PD[P.pair], i = swIndex();
+  p.fy = ease(p.fy, p.fmax * 1.25, 6);
+  const g = chart2({ x: CX, y: INT.y, w: CW, h: INT.h, xmin: -L, xmax: L, xstep: 1, ymin: -p.fy, ymax: p.fy, yticks: 2, fs: 16,
+    xlabel: 'x  (oscillator length = 1)' });
+  let x = CX;
+  x += txt('integrand', x, INT.y - 16, { size: 20, weight: 700, color: C.muted }) + 28;
+  x += psiName(p.s2.name, x, INT.y - 16, { size: 21, weight: 700, color: p.s2.col });
+  x += txt('*', x, INT.y - 22, { size: 18, weight: 700, color: p.s2.col }) + 4;
+  x += txt('x', x, INT.y - 16, { size: 21, weight: 700, color: C.field }) + 6;
+  x += psiName(p.s1.name, x, INT.y - 16, { size: 21, weight: 700, color: p.s1.col }) + 30;
+  const pc = p.same ? C.hot : C.ok;
+  txt(p.ipar + ',  f(−x) = ' + (p.same ? '−f(x)' : 'f(x)'), x, INT.y - 16, { size: 18, weight: 700, color: pc });
+  txt('green: positive area, red: negative area', CX + CW, INT.y - 16, { size: 16, align: 'right', color: C.muted });
+  shade(g, p.f, i);
+  mirrorLines(g, INT.y, INT.h);
+  curve(g, p.f, C.ink, 1.5, N, .35);
+  curve(g, p.f, C.ink, 3, i);
+  mirrorDots(g, p.f, pc, i);
+}
+function drawRun() {
+  const p = PD[P.pair], i = swIndex();
+  p.Fy = ease(p.Fy, Math.max(0.35, p.Fmax * 1.3), 6);
+  const g = chart2({ x: RX, y: RUN.y, w: RW, h: RUN.h, xmin: -L, xmax: L, xstep: 1, ymin: -p.Fy, ymax: p.Fy, yticks: 2, fs: 16, xlabel: 'x' });
+  txt('running integral', RX, RUN.y - 16, { size: 20, weight: 700, color: C.muted });
+  txt('area from −5 up to x', RX + RW, RUN.y - 16, { size: 16, align: 'right', color: C.muted });
+  line(g.X(SW.x), RUN.y, g.X(SW.x), RUN.y + RUN.h, C.muted, 1.6, [6, 5]);
+  curve(g, p.F, p.same ? C.hot : C.ok, 3, i);
+  const px = g.X(SW.x), py = g.Y(p.F[i]);
+  dot(px, py, 6, p.same ? C.hot : C.ok);
+  const s = fmt3(p.F[i]), w = textW(s, 19, 700, true);
+  txtBg(s, Math.min(px + 14, RX + RW - w - 6), py - 12, { size: 19, weight: 700, mono: true, color: C.ink });
+}
+function drawResult(aV) {
+  const p = PD[P.pair], i = swIndex();
+  rrect(BOX.x, BOX.y, BOX.w, BOX.h, 14, C.panel2, C.line, 1.5);
+  const x1 = BOX.x + 24, x2 = BOX.x + BOX.w - 24; let y = BOX.y + 44;
+  txt('matrix element  ' + braket(P.pair) + '  =  q × integral', x1, y, { size: 21, weight: 700, color: C.ink }); y += 44;
+  const row = (k, v, col, big) => {
+    txt(k, x1, y, { size: 19, color: C.muted });
+    txt(v, x2, y, { size: big ? 28 : 22, weight: 700, mono: true, align: 'right', color: col || C.ink }); y += big ? 50 : 38;
+  };
+  row('integrand', p.ipar, p.same ? C.hot : C.ok);
+  row('positive area (green)', fmt3(p.pos[i]), C.ok);
+  row('negative area (red)', fmt3(p.neg[i]), C.hot);
+  line(x1, y - 26, x2, y - 26, C.line, 1.2);
+  row('integral', fmt3(p.F[i]), C.ink, true);
+  group(aV, () => {
+    const s = p.diag ? [braket(P.pair) + ' = 0', 'no permanent dipole moment'] : p.same ? [braket(P.pair) + ' = 0', 'forbidden transition'] : [braket(P.pair) + ' nonzero', 'allowed by parity'];
+    const col = p.same ? C.hot : C.ok;
+    txt(s[0], x1, y + 2, { size: 26, weight: 700, color: col });
+    txt(s[1], x2, y + 2, { size: 22, weight: 700, align: 'right', color: col });
+  });
+}
+const TROWS = ['aa', 'ac', 'bd', 'ab'];
+function drawTable() {
+  rrect(BOX.x, BOX.y, BOX.w, BOX.h, 14, C.panel2, C.line, 1.5);
+  const c1 = BOX.x + 22, c2 = BOX.x + 142, c3 = BOX.x + 298, c4 = BOX.x + 318; let y = BOX.y + 40;
+  txt('states', c1, y, { size: 16, weight: 700, color: C.muted });
+  txt('integrand', c2, y, { size: 16, weight: 700, color: C.muted });
+  txt('integral', c3, y, { size: 16, weight: 700, align: 'right', color: C.muted });
+  txt('result', c4, y, { size: 16, weight: 700, color: C.muted });
+  y += 14; line(c1, y, BOX.x + BOX.w - 22, y, C.line, 1.2); y += 40;
+  for (const k of TROWS) {
+    const p = PD[k], on = k === P.pair, col = p.same ? C.hot : C.ok;
+    if (on) rrect(BOX.x + 12, y - 30, BOX.w - 24, 46, 8, alpha(C.photon, .13));
+    let x = c1;
+    x += psiName(p.s1.name, x, y, { size: 21, weight: 700, color: p.s1.col }) + 6;
+    x += txt('and', x, y, { size: 17, color: C.muted }) + 6;
+    psiName(p.s2.name, x, y, { size: 21, weight: 700, color: p.s2.col });
+    txt(p.ipar, c2, y, { size: 20, weight: 700, color: col });
+    txt(zr(p.value).toFixed(3), c3, y, { size: 20, weight: 700, mono: true, align: 'right' });
+    txt(p.diag ? 'no permanent dipole' : p.same ? 'forbidden' : 'allowed', c4, y, { size: 19, weight: 700, color: col });
+    y += 54;
+  }
+}
+
+/* ================= scene ================= */
+function sceneInit() { precompute(); }
+function sceneStep(dt) {
+  if (!SW.done) {
+    SW.x += P.spd * dt;
+    if (SW.x >= L) { SW.x = L; SW.done = true; SW.hold = 0; }
+  } else {
+    SW.hold += dt;
+    if (SW.hold > 2.2) sweepReset();
+  }
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aP = a('psi'), aD = a('dip'), aI = a('integ'), aR = a('run'), aB = a('result'), aT = a('table');
+  const aV = fade('verdict', SW.done && !!sh.result);
+  group(aP, drawPsi);
+  group(aD, drawDip);
+  group(aI, drawInteg);
+  group(aR, drawRun);
+  group(aB, () => drawResult(aV));
+  group(aT, drawTable);
+}
+const SIM_HOOK = () => ({ P, SW, PD, STATES, PAIRS, XS, N, L, DX, psi, hermite, sweepReset, setPair, swIndex, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

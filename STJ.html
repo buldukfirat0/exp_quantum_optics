@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STJ</title>
+<style>
+  :root {
+    --bg: #e9e6df;
+    --panel: #f4f2ec;
+    --ink: #23272e;
+    --muted: #5d6570;
+    --line: #c6c0b2;
+    --e: #2d5fb8;         /* quasiparticle blue */
+    --pair: #1f7a5c;      /* Cooper pair green */
+    --photon: #b7791f;    /* amber */
+    --term: #0f766e;      /* teal terms */
+    --signal: #15803d;    /* green output */
+    --field: #6d28d9;     /* violet bias */
+    --wave: #0e7490;      /* magnetic-field wave, cyan */
+    --hot: #c02626;
+    --edge: #5a5346;
+  }
+  :root[data-theme="dark"] {
+    --bg: #171b20;
+    --panel: #262b31;
+    --ink: #ebe7dd;
+    --muted: #a1abb5;
+    --line: #3b414a;
+    --e: #6ea3f2;
+    --pair: #46c99a;
+    --photon: #e3a94e;
+    --term: #37c6b8;
+    --signal: #51c77d;
+    --field: #ab8ffb;
+    --wave: #38bdf8;
+    --hot: #f06b6b;
+  }
+  html, body { transition: background-color .3s ease; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 10px 12px 12px;
+  }
+  .bar { width: min(1250px, 97vw); display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px; }
+  .bar h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .bar .spacer { margin-left: auto; }
+  .bar button {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 15px; font-size: 15px; cursor: pointer;
+  }
+  .bar button:hover { border-color: var(--photon); }
+  .bar button:focus-visible { outline: 2px solid var(--photon); outline-offset: 2px; }
+  .controls button { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .controls .chip { min-width: 34px; padding: 7px 0; text-align: center; font-size: 14px; }
+  .controls .chip.active { border-color: var(--photon); color: var(--photon); font-weight: 700; }
+
+  svg { width: min(1250px, 97vw); height: auto; max-height: calc(100vh - 110px); display: block; }
+
+  .cap   { font-size: 29px; font-weight: 700; fill: var(--ink); }
+  .cap2  { font-size: 20px; fill: var(--muted); }
+  .face  { font-size: 20px; font-weight: 700; fill: #2c2620; }
+  .facesub { font-size: 16.5px; font-weight: 600; fill: #4a4236; }
+  .bom   { font-size: 18px; fill: var(--ink); }
+  .term  { font-size: 18px; font-weight: 600; fill: var(--term); }
+  .lbl   { font-size: 18px; fill: var(--muted); }
+  .rlab  { font-size: 20px; font-weight: 700; }
+  .small { font-size: 16px; fill: var(--muted); }
+  .badge { font-size: 20px; font-weight: 700; }
+  .volt  { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+           font-size: 17px; font-weight: 600; fill: var(--field); }
+
+  .fade { opacity: 0; transition: opacity .5s ease; }
+  .fade.on { opacity: 1; }
+  .noanim .fade { transition: none !important; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Superconducting tunnel junction (STJ)</h1>
+  <span class="spacer"></span>
+  <button id="replay" type="button">Replay</button>
+</div>
+<div class="bar controls" role="group" aria-label="step controls">
+  <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+  <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+  <button id="next" type="button" aria-label="next step">&#9654;</button>
+  <span id="chips" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+</div>
+
+<svg viewBox="0 0 1280 762" role="img" aria-label="Superconducting tunnel junction, built then operated">
+
+  <text id="cap"  class="cap"  x="640" y="42" text-anchor="middle"></text>
+  <text id="cap2" class="cap2" x="640" y="74" text-anchor="middle"></text>
+
+  <!-- temperature badge -->
+  <g id="tempbadge" class="fade">
+    <rect x="40" y="100" width="196" height="66" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="badge" x="58" y="132" fill="var(--term)">T &#8776; 0.4 K</text>
+    <text class="small" x="58" y="154">below T<tspan baseline-shift="sub" font-size="11">c</tspan></text>
+  </g>
+
+  <!-- ===== 3D device stack ===== -->
+  <g id="Lsub" class="fade">
+    <polygon points="300,496 660,496 810,408 450,408" fill="#c9c3b6" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="660,496 810,408 810,472 660,560" fill="#9c9689" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,496 660,496 660,560 300,560" fill="#b3ada0" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <g id="Lbase" class="fade">
+    <polygon points="300,442 660,442 810,354 450,354" fill="#e8d8b3" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="660,442 810,354 810,408 660,496" fill="#c2ab7c" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,442 660,442 660,496 300,496" fill="#d9c398" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <g id="Lbar" class="fade">
+    <polygon points="300,426 660,426 810,338 450,338" fill="#d29434" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="660,426 810,338 810,354 660,442" fill="#9f6a17" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,426 660,426 660,442 300,442" fill="#bd7f27" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <g id="Ltop" class="fade">
+    <polygon points="300,372 660,372 810,284 450,284" fill="#e8d8b3" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="660,372 810,284 810,338 660,426" fill="#c2ab7c" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,372 660,372 660,426 300,426" fill="#d9c398" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+
+  <!-- on-face layer labels (build only) -->
+  <g id="labSub" class="fade"><text class="face" x="480" y="533" text-anchor="middle" stroke="#b3ada0" stroke-width="3.5" paint-order="stroke">substrate</text></g>
+  <g id="labBase" class="fade"><text class="face" x="480" y="474" text-anchor="middle" stroke="#d9c398" stroke-width="3.5" paint-order="stroke">base electrode (superconductor)</text></g>
+  <g id="labTop" class="fade">
+    <text class="face" x="480" y="398" text-anchor="middle" stroke="#d9c398" stroke-width="3.5" paint-order="stroke">top electrode (superconductor)</text>
+    <text class="facesub" x="480" y="418" text-anchor="middle" stroke="#d9c398" stroke-width="3.5" paint-order="stroke">absorber: catches the photon</text>
+  </g>
+
+  <!-- barrier detail leader (build only), in the empty space left of the device -->
+  <g id="barLead" class="fade">
+    <line x1="298" y1="434" x2="254" y2="434" stroke="var(--photon)" stroke-width="1.6"/>
+    <text class="facesub" x="246" y="430" text-anchor="end" fill="var(--photon)" font-weight="700">tunnel barrier</text>
+    <text class="small" x="246" y="450" text-anchor="end" fill="var(--photon)">insulator, &#8776; 1 nm</text>
+  </g>
+
+  <!-- magnetic field: a single arrow below the device -->
+  <g id="fieldArrow" style="opacity:0">
+    <text class="rlab" x="336" y="617" text-anchor="end" fill="var(--wave)">B</text>
+    <line x1="352" y1="610" x2="700" y2="610" stroke="var(--wave)" stroke-width="3.5"/>
+    <path d="M 688,602 L 704,610 L 688,618" fill="none" stroke="var(--wave)" stroke-width="3.5" stroke-linejoin="round"/>
+    <text class="lbl" x="352" y="650" fill="var(--wave)">magnetic field B applied, parallel to the barrier</text>
+  </g>
+
+  <!-- bias + ammeter, on the left, with contact wires -->
+  <g id="circuit" class="fade">
+    <path d="M 300,386 L 200,386 L 200,408" fill="none" stroke="var(--field)" stroke-width="2.6"/>
+    <line x1="182" y1="410" x2="218" y2="410" stroke="var(--field)" stroke-width="3"/>
+    <line x1="189" y1="422" x2="211" y2="422" stroke="var(--field)" stroke-width="5.5"/>
+    <path d="M 200,424 L 200,436" fill="none" stroke="var(--field)" stroke-width="2.6"/>
+    <circle cx="200" cy="454" r="17" fill="var(--panel)" stroke="var(--field)" stroke-width="2.2"/>
+    <text class="volt" x="200" y="460" text-anchor="middle" fill="var(--field)">I</text>
+    <path d="M 200,471 L 200,482 L 300,482" fill="none" stroke="var(--field)" stroke-width="2.6"/>
+    <text class="volt" x="174" y="418" text-anchor="end" fill="var(--field)">bias V</text>
+    <text class="small" x="296" y="372" text-anchor="end" fill="var(--field)">contact wires</text>
+  </g>
+
+  <!-- Cooper pairs -->
+  <g id="cpTop">
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="339" y1="396" x2="353" y2="396" stroke-width="2.8"/><circle cx="339" cy="396" r="7.5"/><circle cx="353" cy="396" r="7.5"/></g>
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="426" y1="410" x2="440" y2="410" stroke-width="2.8"/><circle cx="426" cy="410" r="7.5"/><circle cx="440" cy="410" r="7.5"/></g>
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="516" y1="394" x2="530" y2="394" stroke-width="2.8"/><circle cx="516" cy="394" r="7.5"/><circle cx="530" cy="394" r="7.5"/></g>
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="598" y1="408" x2="612" y2="408" stroke-width="2.8"/><circle cx="598" cy="408" r="7.5"/><circle cx="612" cy="408" r="7.5"/></g>
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="463" y1="418" x2="477" y2="418" stroke-width="2.8"/><circle cx="463" cy="418" r="7.5"/><circle cx="477" cy="418" r="7.5"/></g>
+  </g>
+  <g id="cpBase">
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="343" y1="470" x2="357" y2="470" stroke-width="2.8"/><circle cx="343" cy="470" r="7.5"/><circle cx="357" cy="470" r="7.5"/></g>
+    <g class="cp" style="opacity:0" fill="var(--pair)" stroke="var(--pair)"><line x1="390" y1="486" x2="404" y2="486" stroke-width="2.8"/><circle cx="390" cy="486" r="7.5"/><circle cx="404" cy="486" r="7.5"/></g>
+  </g>
+
+  <!-- Cooper-pair definition callout (step 6) -->
+  <g id="cpDef" class="fade">
+    <text class="small" x="60" y="228" text-anchor="middle" fill="var(--e)">e&#8315;</text>
+    <text class="small" x="100" y="228" text-anchor="middle" fill="var(--e)">e&#8315;</text>
+    <circle cx="60" cy="250" r="7.5" fill="var(--e)"/>
+    <circle cx="100" cy="250" r="7.5" fill="var(--e)"/>
+    <line x1="120" y1="250" x2="162" y2="250" stroke="var(--muted)" stroke-width="2.2"/>
+    <path d="M 152,244 L 164,250 L 152,256" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linejoin="round"/>
+    <g fill="var(--pair)" stroke="var(--pair)"><line x1="182" y1="250" x2="196" y2="250" stroke-width="2.8"/><circle cx="182" cy="250" r="7.5"/><circle cx="196" cy="250" r="7.5"/></g>
+    <text class="small" x="188" y="276" text-anchor="middle" fill="var(--pair)" font-weight="700">Cooper pair</text>
+    <text class="small" x="52" y="304">two electrons bind below T<tspan baseline-shift="sub" font-size="11">c</tspan>,</text>
+    <text class="small" x="52" y="326">carrying the supercurrent</text>
+  </g>
+
+  <!-- incident photon (absolute coords; anime.js offsets translateY) -->
+  <g id="photon" style="opacity:0">
+    <path d="M 556,182 q 10,15 0,30 q -10,15 0,30 q 10,15 0,30 q -10,15 0,30" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M 550,300 L 556,316 L 562,300" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linejoin="round"/>
+    <text class="lbl" x="572" y="196" fill="var(--photon)" font-weight="700">photon h&nu;</text>
+  </g>
+
+  <!-- intact pairs blocked at the barrier (step 11) -->
+  <g id="bouncePairs" style="opacity:0">
+    <g fill="var(--pair)" stroke="var(--pair)"><line x1="556" y1="416" x2="570" y2="416" stroke-width="2.8"/><circle cx="556" cy="416" r="7.5"/><circle cx="570" cy="416" r="7.5"/></g>
+    <g fill="var(--pair)" stroke="var(--pair)"><line x1="606" y1="416" x2="620" y2="416" stroke-width="2.8"/><circle cx="606" cy="416" r="7.5"/><circle cx="620" cy="416" r="7.5"/></g>
+  </g>
+
+  <!-- quasiparticles born in the top electrode, then tunnel down -->
+  <g id="quasilab" class="fade"><text class="term" x="300" y="182" fill="var(--e)">quasiparticles (single carriers from broken pairs)</text></g>
+  <g id="quasi">
+    <circle cx="420" cy="390" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="445" cy="404" r="7.5" fill="var(--e)" style="opacity:0"/>
+    <circle cx="478" cy="388" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="505" cy="402" r="7.5" fill="var(--e)" style="opacity:0"/>
+    <circle cx="540" cy="392" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="512" cy="418" r="7.5" fill="var(--e)" style="opacity:0"/>
+    <circle cx="452" cy="416" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="486" cy="420" r="7.5" fill="var(--e)" style="opacity:0"/>
+    <circle cx="425" cy="418" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="470" cy="390" r="7.5" fill="var(--e)" style="opacity:0"/>
+    <circle cx="528" cy="406" r="7.5" fill="var(--e)" style="opacity:0"/><circle cx="400" cy="404" r="7.5" fill="var(--e)" style="opacity:0"/>
+  </g>
+
+  <!-- ===== right column: build legend (build only) ===== -->
+  <g id="bom" class="fade">
+    <rect x="852" y="110" width="416" height="200" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="term" x="872" y="140" fill="var(--ink)" font-weight="700">device stack, top to bottom</text>
+  </g>
+  <g id="bom1" class="fade"><rect x="872" y="156" width="22" height="22" fill="#d9c398" stroke="var(--edge)" stroke-width="1"/><text class="bom" x="904" y="174">top electrode: superconductor, absorber</text></g>
+  <g id="bom2" class="fade"><rect x="872" y="192" width="22" height="22" fill="#bd7f27" stroke="var(--edge)" stroke-width="1"/><text class="bom" x="904" y="210">tunnel barrier: insulator, &#8776; 1 nm</text></g>
+  <g id="bom3" class="fade"><rect x="872" y="228" width="22" height="22" fill="#d9c398" stroke="var(--edge)" stroke-width="1"/><text class="bom" x="904" y="246">base electrode: superconductor</text></g>
+  <g id="bom4" class="fade"><rect x="872" y="264" width="22" height="22" fill="#b3ada0" stroke="var(--edge)" stroke-width="1"/><text class="bom" x="904" y="282">substrate: support wafer</text></g>
+
+  <!-- takeaway -->
+  <g id="takeaway" class="fade">
+    <text class="term" x="1066" y="404" text-anchor="middle" font-weight="700" fill="var(--term)">pulse charge &#8733; N &#8733; photon energy</text>
+    <text class="term" x="1066" y="428" text-anchor="middle" font-weight="700" fill="var(--term)">energy resolving, full photon-number resolution</text>
+  </g>
+
+  <!-- current scope -->
+  <g id="scope" class="fade">
+    <text class="lbl" x="1066" y="456" text-anchor="middle">tunneling current I</text>
+    <rect x="892" y="468" width="360" height="224" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <line x1="918" y1="660" x2="1228" y2="660" stroke="var(--muted)" stroke-width="1.8"/>
+    <line x1="918" y1="660" x2="918" y2="488" stroke="var(--muted)" stroke-width="1.8"/>
+    <text class="small" x="926" y="504">I</text>
+    <text class="small" x="1224" y="680" text-anchor="end">time</text>
+    <line x1="918" y1="660" x2="1228" y2="660" stroke="var(--signal)" stroke-width="2.6" opacity="0.5"/>
+  </g>
+  <path id="trace_area" d="M 992,660 L 1034,522 L 1132,522 L 1174,660 Z" fill="var(--signal)" style="opacity:0"/>
+  <path id="trace_rise" d="M 918,660 L 992,660 L 1034,522 L 1132,522 L 1174,660 L 1228,660" fill="none" stroke="var(--signal)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" style="opacity:0"/>
+  <text id="trace_note" class="fade small" x="1082" y="514" text-anchor="middle" fill="var(--signal)" font-weight="700">height &#8733; N quasiparticles</text>
+  <text id="chargeNote" class="fade small" x="1083" y="614" text-anchor="middle" fill="var(--signal)" font-weight="700">area = total charge Q = N &#183; e</text>
+
+</svg>
+
+<script>
+/*
+ * anime.js v3.2.2
+ * (c) 2023 Julian Garnier
+ * Released under the MIT license
+ * animejs.com
+ */
+
+!function(n,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):n.anime=e()}(this,function(){"use strict";var i={update:null,begin:null,loopBegin:null,changeBegin:null,change:null,changeComplete:null,loopComplete:null,complete:null,loop:1,direction:"normal",autoplay:!0,timelineOffset:0},M={duration:1e3,delay:0,endDelay:0,easing:"easeOutElastic(1, .5)",round:0},j=["translateX","translateY","translateZ","rotate","rotateX","rotateY","rotateZ","scale","scaleX","scaleY","scaleZ","skew","skewX","skewY","perspective","matrix","matrix3d"],l={CSS:{},springs:{}};function C(n,e,t){return Math.min(Math.max(n,e),t)}function u(n,e){return-1<n.indexOf(e)}function o(n,e){return n.apply(null,e)}var w={arr:function(n){return Array.isArray(n)},obj:function(n){return u(Object.prototype.toString.call(n),"Object")},pth:function(n){return w.obj(n)&&n.hasOwnProperty("totalLength")},svg:function(n){return n instanceof SVGElement},inp:function(n){return n instanceof HTMLInputElement},dom:function(n){return n.nodeType||w.svg(n)},str:function(n){return"string"==typeof n},fnc:function(n){return"function"==typeof n},und:function(n){return void 0===n},nil:function(n){return w.und(n)||null===n},hex:function(n){return/(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i.test(n)},rgb:function(n){return/^rgb/.test(n)},hsl:function(n){return/^hsl/.test(n)},col:function(n){return w.hex(n)||w.rgb(n)||w.hsl(n)},key:function(n){return!i.hasOwnProperty(n)&&!M.hasOwnProperty(n)&&"targets"!==n&&"keyframes"!==n}};function d(n){n=/\(([^)]+)\)/.exec(n);return n?n[1].split(",").map(function(n){return parseFloat(n)}):[]}function c(r,t){var n=d(r),e=C(w.und(n[0])?1:n[0],.1,100),a=C(w.und(n[1])?100:n[1],.1,100),o=C(w.und(n[2])?10:n[2],.1,100),n=C(w.und(n[3])?0:n[3],.1,100),u=Math.sqrt(a/e),i=o/(2*Math.sqrt(a*e)),c=i<1?u*Math.sqrt(1-i*i):0,s=i<1?(i*u-n)/c:-n+u;function f(n){var e=t?t*n/1e3:n,e=i<1?Math.exp(-e*i*u)*(+Math.cos(c*e)+s*Math.sin(c*e)):(1+s*e)*Math.exp(-e*u);return 0===n||1===n?n:1-e}return t?f:function(){var n=l.springs[r];if(n)return n;for(var e=0,t=0;;)if(1===f(e+=1/6)){if(16<=++t)break}else t=0;return n=e*(1/6)*1e3,l.springs[r]=n}}function q(e){return void 0===e&&(e=10),function(n){return Math.ceil(C(n,1e-6,1)*e)*(1/e)}}var H=function(b,e,M,t){if(0<=b&&b<=1&&0<=M&&M<=1){var x=new Float32Array(11);if(b!==e||M!==t)for(var n=0;n<11;++n)x[n]=k(.1*n,b,M);return function(n){return b===e&&M===t||0===n||1===n?n:k(r(n),e,t)}}function r(n){for(var e=0,t=1;10!==t&&x[t]<=n;++t)e+=.1;var r=e+.1*((n-x[--t])/(x[t+1]-x[t])),a=O(r,b,M);if(.001<=a){for(var o=n,u=r,i=b,c=M,s=0;s<4;++s){var f=O(u,i,c);if(0===f)return u;u-=(k(u,i,c)-o)/f}return u}if(0===a)return r;for(var l,d,p=n,h=e,g=e+.1,m=b,v=M,y=0;0<(l=k(d=h+(g-h)/2,m,v)-p)?g=d:h=d,1e-7<Math.abs(l)&&++y<10;);return d}};function r(n,e){return 1-3*e+3*n}function k(n,e,t){return((r(e,t)*n+(3*t-6*e))*n+3*e)*n}function O(n,e,t){return 3*r(e,t)*n*n+2*(3*t-6*e)*n+3*e}e={linear:function(){return function(n){return n}}},t={Sine:function(){return function(n){return 1-Math.cos(n*Math.PI/2)}},Expo:function(){return function(n){return n?Math.pow(2,10*n-10):0}},Circ:function(){return function(n){return 1-Math.sqrt(1-n*n)}},Back:function(){return function(n){return n*n*(3*n-2)}},Bounce:function(){return function(n){for(var e,t=4;n<((e=Math.pow(2,--t))-1)/11;);return 1/Math.pow(4,3-t)-7.5625*Math.pow((3*e-2)/22-n,2)}},Elastic:function(n,e){void 0===e&&(e=.5);var t=C(n=void 0===n?1:n,1,10),r=C(e,.1,2);return function(n){return 0===n||1===n?n:-t*Math.pow(2,10*(n-1))*Math.sin((n-1-r/(2*Math.PI)*Math.asin(1/t))*(2*Math.PI)/r)}}},["Quad","Cubic","Quart","Quint"].forEach(function(n,e){t[n]=function(){return function(n){return Math.pow(n,e+2)}}}),Object.keys(t).forEach(function(n){var r=t[n];e["easeIn"+n]=r,e["easeOut"+n]=function(e,t){return function(n){return 1-r(e,t)(1-n)}},e["easeInOut"+n]=function(e,t){return function(n){return n<.5?r(e,t)(2*n)/2:1-r(e,t)(-2*n+2)/2}},e["easeOutIn"+n]=function(e,t){return function(n){return n<.5?(1-r(e,t)(1-2*n))/2:(r(e,t)(2*n-1)+1)/2}}});var e,t,s=e;function P(n,e){if(w.fnc(n))return n;var t=n.split("(")[0],r=s[t],a=d(n);switch(t){case"spring":return c(n,e);case"cubicBezier":return o(H,a);case"steps":return o(q,a);default:return o(r,a)}}function a(n){try{return document.querySelectorAll(n)}catch(n){}}function I(n,e){for(var t,r=n.length,a=2<=arguments.length?e:void 0,o=[],u=0;u<r;u++)u in n&&(t=n[u],e.call(a,t,u,n))&&o.push(t);return o}function f(n){return n.reduce(function(n,e){return n.concat(w.arr(e)?f(e):e)},[])}function p(n){return w.arr(n)?n:(n=w.str(n)?a(n)||n:n)instanceof NodeList||n instanceof HTMLCollection?[].slice.call(n):[n]}function h(n,e){return n.some(function(n){return n===e})}function g(n){var e,t={};for(e in n)t[e]=n[e];return t}function x(n,e){var t,r=g(n);for(t in n)r[t]=(e.hasOwnProperty(t)?e:n)[t];return r}function D(n,e){var t,r=g(n);for(t in e)r[t]=(w.und(n[t])?e:n)[t];return r}function V(n){var e,t,r,a,o,u,i;return w.rgb(n)?(e=/rgb\((\d+,\s*[\d]+,\s*[\d]+)\)/g.exec(t=n))?"rgba("+e[1]+",1)":t:w.hex(n)?(e=(e=n).replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i,function(n,e,t,r){return e+e+t+t+r+r}),e=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(e),"rgba("+parseInt(e[1],16)+","+parseInt(e[2],16)+","+parseInt(e[3],16)+",1)"):w.hsl(n)?(t=/hsl\((\d+),\s*([\d.]+)%,\s*([\d.]+)%\)/g.exec(t=n)||/hsla\((\d+),\s*([\d.]+)%,\s*([\d.]+)%,\s*([\d.]+)\)/g.exec(t),n=parseInt(t[1],10)/360,u=parseInt(t[2],10)/100,i=parseInt(t[3],10)/100,t=t[4]||1,0==u?r=a=o=i:(r=c(u=2*i-(i=i<.5?i*(1+u):i+u-i*u),i,n+1/3),a=c(u,i,n),o=c(u,i,n-1/3)),"rgba("+255*r+","+255*a+","+255*o+","+t+")"):void 0;function c(n,e,t){return t<0&&(t+=1),1<t&&--t,t<1/6?n+6*(e-n)*t:t<.5?e:t<2/3?n+(e-n)*(2/3-t)*6:n}}function B(n){n=/[+-]?\d*\.?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(%|px|pt|em|rem|in|cm|mm|ex|ch|pc|vw|vh|vmin|vmax|deg|rad|turn)?$/.exec(n);if(n)return n[1]}function m(n,e){return w.fnc(n)?n(e.target,e.id,e.total):n}function v(n,e){return n.getAttribute(e)}function y(n,e,t){var r,a,o;return h([t,"deg","rad","turn"],B(e))?e:(r=l.CSS[e+t],w.und(r)?(a=document.createElement(n.tagName),(n=n.parentNode&&n.parentNode!==document?n.parentNode:document.body).appendChild(a),a.style.position="absolute",a.style.width=100+t,o=100/a.offsetWidth,n.removeChild(a),n=o*parseFloat(e),l.CSS[e+t]=n):r)}function $(n,e,t){var r;if(e in n.style)return r=e.replace(/([a-z])([A-Z])/g,"$1-$2").toLowerCase(),e=n.style[e]||getComputedStyle(n).getPropertyValue(r)||"0",t?y(n,e,t):e}function b(n,e){return w.dom(n)&&!w.inp(n)&&(!w.nil(v(n,e))||w.svg(n)&&n[e])?"attribute":w.dom(n)&&h(j,e)?"transform":w.dom(n)&&"transform"!==e&&$(n,e)?"css":null!=n[e]?"object":void 0}function W(n){if(w.dom(n)){for(var e,t=n.style.transform||"",r=/(\w+)\(([^)]*)\)/g,a=new Map;e=r.exec(t);)a.set(e[1],e[2]);return a}}function X(n,e,t,r){var a=u(e,"scale")?1:0+(u(a=e,"translate")||"perspective"===a?"px":u(a,"rotate")||u(a,"skew")?"deg":void 0),o=W(n).get(e)||a;return t&&(t.transforms.list.set(e,o),t.transforms.last=e),r?y(n,o,r):o}function T(n,e,t,r){switch(b(n,e)){case"transform":return X(n,e,r,t);case"css":return $(n,e,t);case"attribute":return v(n,e);default:return n[e]||0}}function E(n,e){var t=/^(\*=|\+=|-=)/.exec(n);if(!t)return n;var r=B(n)||0,a=parseFloat(e),o=parseFloat(n.replace(t[0],""));switch(t[0][0]){case"+":return a+o+r;case"-":return a-o+r;case"*":return a*o+r}}function Y(n,e){var t;return w.col(n)?V(n):/\s/g.test(n)?n:(t=(t=B(n))?n.substr(0,n.length-t.length):n,e?t+e:t)}function F(n,e){return Math.sqrt(Math.pow(e.x-n.x,2)+Math.pow(e.y-n.y,2))}function Z(n){for(var e,t=n.points,r=0,a=0;a<t.numberOfItems;a++){var o=t.getItem(a);0<a&&(r+=F(e,o)),e=o}return r}function G(n){if(n.getTotalLength)return n.getTotalLength();switch(n.tagName.toLowerCase()){case"circle":return 2*Math.PI*v(n,"r");case"rect":return 2*v(t=n,"width")+2*v(t,"height");case"line":return F({x:v(t=n,"x1"),y:v(t,"y1")},{x:v(t,"x2"),y:v(t,"y2")});case"polyline":return Z(n);case"polygon":return e=n.points,Z(n)+F(e.getItem(e.numberOfItems-1),e.getItem(0))}var e,t}function Q(n,e){var e=e||{},n=e.el||function(n){for(var e=n.parentNode;w.svg(e)&&w.svg(e.parentNode);)e=e.parentNode;return e}(n),t=n.getBoundingClientRect(),r=v(n,"viewBox"),a=t.width,t=t.height,e=e.viewBox||(r?r.split(" "):[0,0,a,t]);return{el:n,viewBox:e,x:+e[0],y:+e[1],w:a,h:t,vW:e[2],vH:e[3]}}function z(n,e){var t=/[+-]?\d*\.?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,r=Y(w.pth(n)?n.totalLength:n,e)+"";return{original:r,numbers:r.match(t)?r.match(t).map(Number):[0],strings:w.str(n)||e?r.split(t):[]}}function A(n){return I(n?f(w.arr(n)?n.map(p):p(n)):[],function(n,e,t){return t.indexOf(n)===e})}function _(n){var t=A(n);return t.map(function(n,e){return{target:n,id:e,total:t.length,transforms:{list:W(n)}}})}function R(e){for(var t=I(f(e.map(function(n){return Object.keys(n)})),function(n){return w.key(n)}).reduce(function(n,e){return n.indexOf(e)<0&&n.push(e),n},[]),a={},n=0;n<t.length;n++)!function(n){var r=t[n];a[r]=e.map(function(n){var e,t={};for(e in n)w.key(e)?e==r&&(t.value=n[e]):t[e]=n[e];return t})}(n);return a}function J(n,e){var t,r=[],a=e.keyframes;for(t in e=a?D(R(a),e):e)w.key(t)&&r.push({name:t,tweens:function(n,t){var e,r=g(t),a=(/^spring/.test(r.easing)&&(r.duration=c(r.easing)),w.arr(n)&&(2===(e=n.length)&&!w.obj(n[0])?n={value:n}:w.fnc(t.duration)||(r.duration=t.duration/e)),w.arr(n)?n:[n]);return a.map(function(n,e){n=w.obj(n)&&!w.pth(n)?n:{value:n};return w.und(n.delay)&&(n.delay=e?0:t.delay),w.und(n.endDelay)&&(n.endDelay=e===a.length-1?t.endDelay:0),n}).map(function(n){return D(n,r)})}(e[t],n)});return r}function K(i,c){var s;return i.tweens.map(function(n){var n=function(n,e){var t,r={};for(t in n){var a=m(n[t],e);w.arr(a)&&1===(a=a.map(function(n){return m(n,e)})).length&&(a=a[0]),r[t]=a}return r.duration=parseFloat(r.duration),r.delay=parseFloat(r.delay),r}(n,c),e=n.value,t=w.arr(e)?e[1]:e,r=B(t),a=T(c.target,i.name,r,c),o=s?s.to.original:a,u=w.arr(e)?e[0]:o,a=B(u)||B(a),r=r||a;return w.und(t)&&(t=o),n.from=z(u,r),n.to=z(E(t,u),r),n.start=s?s.end:0,n.end=n.start+n.delay+n.duration+n.endDelay,n.easing=P(n.easing,n.duration),n.isPath=w.pth(e),n.isPathTargetInsideSVG=n.isPath&&w.svg(c.target),n.isColor=w.col(n.from.original),n.isColor&&(n.round=1),s=n})}var U={css:function(n,e,t){return n.style[e]=t},attribute:function(n,e,t){return n.setAttribute(e,t)},object:function(n,e,t){return n[e]=t},transform:function(n,e,t,r,a){var o;r.list.set(e,t),e!==r.last&&!a||(o="",r.list.forEach(function(n,e){o+=e+"("+n+") "}),n.style.transform=o)}};function nn(n,u){_(n).forEach(function(n){for(var e in u){var t=m(u[e],n),r=n.target,a=B(t),o=T(r,e,a,n),t=E(Y(t,a||B(o)),o),a=b(r,e);U[a](r,e,t,n.transforms,!0)}})}function en(n,e){return I(f(n.map(function(o){return e.map(function(n){var e,t,r=o,a=b(r.target,n.name);if(a)return t=(e=K(n,r))[e.length-1],{type:a,property:n.name,animatable:r,tweens:e,duration:t.end,delay:e[0].delay,endDelay:t.endDelay}})})),function(n){return!w.und(n)})}function tn(n,e){function t(n){return n.timelineOffset||0}var r=n.length,a={};return a.duration=r?Math.max.apply(Math,n.map(function(n){return t(n)+n.duration})):e.duration,a.delay=r?Math.min.apply(Math,n.map(function(n){return t(n)+n.delay})):e.delay,a.endDelay=r?a.duration-Math.max.apply(Math,n.map(function(n){return t(n)+n.duration-n.endDelay})):e.endDelay,a}var rn=0;var N,S=[],an=("undefined"!=typeof document&&document.addEventListener("visibilitychange",function(){L.suspendWhenDocumentHidden&&(n()?N=cancelAnimationFrame(N):(S.forEach(function(n){return n._onDocumentVisibility()}),an()))}),function(){!(N||n()&&L.suspendWhenDocumentHidden)&&0<S.length&&(N=requestAnimationFrame(on))});function on(n){for(var e=S.length,t=0;t<e;){var r=S[t];r.paused?(S.splice(t,1),e--):(r.tick(n),t++)}N=0<t?requestAnimationFrame(on):void 0}function n(){return document&&document.hidden}function L(n){var c,s=0,f=0,l=0,d=0,p=null;function h(n){var e=window.Promise&&new Promise(function(n){return p=n});return n.finished=e}e=x(i,n=n=void 0===n?{}:n),t=J(r=x(M,n),n),n=_(n.targets),r=tn(t=en(n,t),r),a=rn,rn++;var e,t,r,a,k=D(e,{id:a,children:[],animatables:n,animations:t,duration:r.duration,delay:r.delay,endDelay:r.endDelay});h(k);function g(){var n=k.direction;"alternate"!==n&&(k.direction="normal"!==n?"normal":"reverse"),k.reversed=!k.reversed,c.forEach(function(n){return n.reversed=k.reversed})}function m(n){return k.reversed?k.duration-n:n}function o(){s=0,f=m(k.currentTime)*(1/L.speed)}function v(n,e){e&&e.seek(n-e.timelineOffset)}function y(e){for(var n=0,t=k.animations,r=t.length;n<r;){for(var a=t[n],o=a.animatable,u=a.tweens,i=u.length-1,c=u[i],i=(i&&(c=I(u,function(n){return e<n.end})[0]||c),C(e-c.start-c.delay,0,c.duration)/c.duration),s=isNaN(i)?1:c.easing(i),f=c.to.strings,l=c.round,d=[],p=c.to.numbers.length,h=void 0,g=0;g<p;g++){var m=void 0,v=c.to.numbers[g],y=c.from.numbers[g]||0,m=c.isPath?function(e,t,n){function r(n){return e.el.getPointAtLength(1<=t+(n=void 0===n?0:n)?t+n:0)}var a=Q(e.el,e.svg),o=r(),u=r(-1),i=r(1),c=n?1:a.w/a.vW,s=n?1:a.h/a.vH;switch(e.property){case"x":return(o.x-a.x)*c;case"y":return(o.y-a.y)*s;case"angle":return 180*Math.atan2(i.y-u.y,i.x-u.x)/Math.PI}}(c.value,s*v,c.isPathTargetInsideSVG):y+s*(v-y);!l||c.isColor&&2<g||(m=Math.round(m*l)/l),d.push(m)}var b=f.length;if(b)for(var h=f[0],M=0;M<b;M++){f[M];var x=f[M+1],w=d[M];isNaN(w)||(h+=x?w+x:w+" ")}else h=d[0];U[a.type](o.target,a.property,h,o.transforms),a.currentValue=h,n++}}function b(n){k[n]&&!k.passThrough&&k[n](k)}function u(n){var e=k.duration,t=k.delay,r=e-k.endDelay,a=m(n);if(k.progress=C(a/e*100,0,100),k.reversePlayback=a<k.currentTime,c){var o=a;if(k.reversePlayback)for(var u=d;u--;)v(o,c[u]);else for(var i=0;i<d;i++)v(o,c[i])}!k.began&&0<k.currentTime&&(k.began=!0,b("begin")),!k.loopBegan&&0<k.currentTime&&(k.loopBegan=!0,b("loopBegin")),a<=t&&0!==k.currentTime&&y(0),(r<=a&&k.currentTime!==e||!e)&&y(e),t<a&&a<r?(k.changeBegan||(k.changeBegan=!0,k.changeCompleted=!1,b("changeBegin")),b("change"),y(a)):k.changeBegan&&(k.changeCompleted=!0,k.changeBegan=!1,b("changeComplete")),k.currentTime=C(a,0,e),k.began&&b("update"),e<=n&&(f=0,k.remaining&&!0!==k.remaining&&k.remaining--,k.remaining?(s=l,b("loopComplete"),k.loopBegan=!1,"alternate"===k.direction&&g()):(k.paused=!0,k.completed||(k.completed=!0,b("loopComplete"),b("complete"),!k.passThrough&&"Promise"in window&&(p(),h(k)))))}return k.reset=function(){var n=k.direction;k.passThrough=!1,k.currentTime=0,k.progress=0,k.paused=!0,k.began=!1,k.loopBegan=!1,k.changeBegan=!1,k.completed=!1,k.changeCompleted=!1,k.reversePlayback=!1,k.reversed="reverse"===n,k.remaining=k.loop,c=k.children;for(var e=d=c.length;e--;)k.children[e].reset();(k.reversed&&!0!==k.loop||"alternate"===n&&1===k.loop)&&k.remaining++,y(k.reversed?k.duration:0)},k._onDocumentVisibility=o,k.set=function(n,e){return nn(n,e),k},k.tick=function(n){u(((l=n)+(f-(s=s||l)))*L.speed)},k.seek=function(n){u(m(n))},k.pause=function(){k.paused=!0,o()},k.play=function(){k.paused&&(k.completed&&k.reset(),k.paused=!1,S.push(k),o(),an())},k.reverse=function(){g(),k.completed=!k.reversed,o()},k.restart=function(){k.reset(),k.play()},k.remove=function(n){cn(A(n),k)},k.reset(),k.autoplay&&k.play(),k}function un(n,e){for(var t=e.length;t--;)h(n,e[t].animatable.target)&&e.splice(t,1)}function cn(n,e){var t=e.animations,r=e.children;un(n,t);for(var a=r.length;a--;){var o=r[a],u=o.animations;un(n,u),u.length||o.children.length||r.splice(a,1)}t.length||r.length||e.pause()}return L.version="3.2.1",L.speed=1,L.suspendWhenDocumentHidden=!0,L.running=S,L.remove=function(n){for(var e=A(n),t=S.length;t--;)cn(e,S[t])},L.get=T,L.set=nn,L.convertPx=y,L.path=function(n,e){var t=w.str(n)?a(n)[0]:n,r=e||100;return function(n){return{property:n,el:t,svg:Q(t),totalLength:G(t)*(r/100)}}},L.setDashoffset=function(n){var e=G(n);return n.setAttribute("stroke-dasharray",e),e},L.stagger=function(n,e){var i=(e=void 0===e?{}:e).direction||"normal",c=e.easing?P(e.easing):null,s=e.grid,f=e.axis,l=e.from||0,d="first"===l,p="center"===l,h="last"===l,g=w.arr(n),m=g?parseFloat(n[0]):parseFloat(n),v=g?parseFloat(n[1]):0,y=B(g?n[1]:n)||0,b=e.start||0+(g?m:0),M=[],x=0;return function(n,e,t){if(d&&(l=0),p&&(l=(t-1)/2),h&&(l=t-1),!M.length){for(var r,a,o,u=0;u<t;u++)s?(r=p?(s[0]-1)/2:l%s[0],a=p?(s[1]-1)/2:Math.floor(l/s[0]),r=r-u%s[0],a=a-Math.floor(u/s[0]),o=Math.sqrt(r*r+a*a),"x"===f&&(o=-r),M.push(o="y"===f?-a:o)):M.push(Math.abs(l-u)),x=Math.max.apply(Math,M);c&&(M=M.map(function(n){return c(n/x)*x})),"reverse"===i&&(M=M.map(function(n){return f?n<0?-1*n:-n:Math.abs(x-n)}))}return b+(g?(v-m)/x:m)*(Math.round(100*M[e])/100)+y}},L.timeline=function(u){var i=L(u=void 0===u?{}:u);return i.duration=0,i.add=function(n,e){var t=S.indexOf(i),r=i.children;function a(n){n.passThrough=!0}-1<t&&S.splice(t,1);for(var o=0;o<r.length;o++)a(r[o]);t=D(n,x(M,u)),t.targets=t.targets||u.targets,n=i.duration,t.autoplay=!1,t.direction=i.direction,t.timelineOffset=w.und(e)?n:E(e,n),a(i),i.seek(t.timelineOffset),e=L(t),a(e),r.push(e),n=tn(r,u);return i.delay=n.delay,i.endDelay=n.endDelay,i.duration=n.duration,i.seek(0),i.reset(),i.autoplay&&i.play(),i},i},L.easing=P,L.penner=s,L.random=function(n,e){return Math.floor(Math.random()*(e-n+1))+n},L});
+</script>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function on(id, v) { var el = $(id); if (el) el.classList.toggle('on', !!v); }
+
+  var qDots = Array.prototype.slice.call(document.querySelectorAll('#quasi circle'));
+  var cpTopEls = Array.prototype.slice.call(document.querySelectorAll('#cpTop .cp'));
+  var cpBaseEls = Array.prototype.slice.call(document.querySelectorAll('#cpBase .cp'));
+  var photonEl = $('photon'), fieldEl = $('fieldArrow'), bounceEl = $('bouncePairs');
+  var traceRise = $('trace_rise'), traceArea = $('trace_area');
+
+  var STEPS = [
+    { cap: "1. Start with the substrate.",
+      cap2: "A flat support wafer, for example silicon or sapphire." },
+    { cap: "2. Deposit the base electrode.",
+      cap2: "A superconducting film, for example niobium or tantalum." },
+    { cap: "3. Grow the tunnel barrier.",
+      cap2: "A thin insulating layer, about 1 nanometer thick." },
+    { cap: "4. Deposit the top electrode.",
+      cap2: "A second superconducting film. It absorbs the photon." },
+    { cap: "5. Cool the device to about 0.4 kelvin.",
+      cap2: "Cool below the critical temperature Tc." },
+    { cap: "6. Cooper pairs form in both electrodes.",
+      cap2: "The electrons bind in twos into Cooper pairs." },
+    { cap: "7. Apply the magnetic field.",
+      cap2: "Parallel to the barrier, it blocks Cooper-pair tunneling." },
+    { cap: "8. Apply a small bias voltage.",
+      cap2: "Set across the junction." },
+    { cap: "9. A single photon strikes the top electrode.",
+      cap2: "Absorbed in the top film, carrying energy hν." },
+    { cap: "10. Absorption breaks Cooper pairs into quasiparticles.",
+      cap2: "One photon frees thousands of quasiparticles." },
+    { cap: "11. The bias sweeps the quasiparticles across the barrier.",
+      cap2: "Each one tunnels through the barrier into the base electrode." },
+    { cap: "12. The tunneling events are too fast to count one by one.",
+      cap2: "The readout measures the total charge instead: Q = N · e." },
+    { cap: "13. The charge is proportional to the number of quasiparticles.",
+      cap2: "The pulse size gives the photon number: full photon-number resolution." }
+  ];
+  var N = STEPS.length;
+
+  // persistent looping animation (blocked pairs bobbing at the barrier)
+  var bounceAnim = anime({ targets: bounceEl, translateY: [0, 24], direction: 'alternate', loop: true, duration: 720, easing: 'easeInOutSine', autoplay: false });
+
+  var s = 0, playing = true, timer = null, traceDrawn = false, instant = false;
+
+  // creates an anime tween; when an instant park is requested, jump it to its end state
+  function tween(params) {
+    var a = anime(params);
+    if (instant) { a.seek(a.duration); a.pause(); }
+    return a;
+  }
+
+  var chipsBox = $('chips');
+  STEPS.forEach(function (_, k) {
+    var b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.textContent = k + 1;
+    b.addEventListener('click', function () { stop(); go(k); });
+    chipsBox.appendChild(b);
+  });
+  var chips = Array.prototype.slice.call(chipsBox.children);
+
+  function render(step) {
+    s = step;
+    // s = -1 is the boot park: empty stage, nothing built until the first step is pressed
+    $('cap').textContent = s >= 0 ? STEPS[s].cap : 'Superconducting tunnel junction';
+    $('cap2').textContent = s >= 0 ? STEPS[s].cap2 : 'Built step by step.';
+
+    // ----- declarative structure / panels -----
+    on('Lsub', s >= 0); on('Lbase', s >= 1); on('Lbar', s >= 2); on('Ltop', s >= 3);
+    on('labSub', s >= 0 && s <= 4); on('labBase', s >= 1 && s <= 4); on('labTop', s >= 3 && s <= 4);
+    on('barLead', s >= 2 && s <= 3);
+    on('bom', s >= 0 && s <= 3);
+    on('bom4', s >= 0 && s <= 3); on('bom3', s >= 1 && s <= 3); on('bom2', s >= 2 && s <= 3); on('bom1', s >= 3 && s <= 3);
+    on('tempbadge', s >= 4);
+    on('cpDef', s === 5);
+    on('circuit', s >= 7);
+    on('quasilab', s >= 9);
+    on('scope', s >= 9);
+    on('chargeNote', s >= 11);
+    on('trace_note', s >= 12);
+    on('takeaway', s >= 12);
+
+    // ----- animated pieces -----
+    animCooper(cpTopEls, s >= 5 && s < 9);   // top pairs break at step 9 (index 9)
+    animCooper(cpBaseEls, s >= 5);
+    animField(s >= 6);
+    animPhoton(s === 8);
+    animQuasi(s >= 9, s >= 10);
+    animBounce(s === 10);
+    animTrace(s >= 10, s >= 11);
+
+    chips.forEach(function (c, k) { c.classList.toggle('active', k === step); });
+
+    try { parent.postMessage({ animState: { step: s + 1, total: N } }, '*'); } catch (e) {}
+  }
+
+  function animCooper(els, show) {
+    anime.remove(els);
+    tween({ targets: els, opacity: show ? 1 : 0, duration: show ? 480 : 240,
+            delay: show ? anime.stagger(55) : 0, easing: 'easeOutQuad' });
+  }
+  function animField(show) {
+    anime.remove(fieldEl);
+    tween({ targets: fieldEl, opacity: show ? 1 : 0, duration: show ? 400 : 200, easing: 'linear' });
+  }
+  function animPhoton(show) {
+    anime.remove(photonEl);
+    if (show) { photonEl.style.opacity = 1; tween({ targets: photonEl, translateY: [-150, 0], duration: 1000, easing: 'easeInQuad' }); }
+    else { photonEl.style.opacity = 0; photonEl.style.transform = 'translateY(0px)'; }
+  }
+  function animQuasi(show, tunneled) {
+    anime.remove(qDots);
+    tween({ targets: qDots, opacity: show ? 1 : 0, translateY: tunneled ? 72 : 0,
+            duration: show ? 850 : 240, delay: show ? anime.stagger(40) : 0, easing: 'easeInOutQuad' });
+  }
+  function animBounce(show) {
+    if (show) { bounceEl.style.opacity = 1; bounceAnim.play(); }
+    else { bounceAnim.pause(); bounceEl.style.opacity = 0; bounceEl.style.transform = 'translateY(0px)'; }
+  }
+  function animTrace(rise, area) {
+    anime.remove(traceRise); anime.remove(traceArea);
+    if (rise) {
+      traceRise.style.opacity = 1;
+      if (!traceDrawn) { tween({ targets: traceRise, strokeDashoffset: [anime.setDashoffset, 0], duration: 1100, easing: 'easeInOutSine' }); traceDrawn = true; }
+    } else { traceRise.style.opacity = 0; traceRise.removeAttribute('stroke-dasharray'); traceRise.removeAttribute('stroke-dashoffset'); traceDrawn = false; }
+    tween({ targets: traceArea, opacity: area ? 0.16 : 0, duration: area ? 500 : 200, easing: 'linear' });
+  }
+
+  function go(n) { s = Math.max(0, Math.min(N - 1, n)); render(s); }
+  function goInstant(n) {
+    instant = true;
+    document.body.classList.add('noanim');
+    go(n);
+    void document.body.offsetWidth; // flush styles while transitions are off
+    document.body.classList.remove('noanim');
+    instant = false;
+  }
+  // boot park: empty stage before step 1 (user order: nothing runs, nothing is
+  // built, until the first step is pressed). Announces step 0 to the deck.
+  function parkStart() {
+    instant = true;
+    document.body.classList.add('noanim');
+    render(-1);
+    void document.body.offsetWidth;
+    document.body.classList.remove('noanim');
+    instant = false;
+  }
+  function next() { if (s < N - 1) go(s + 1); else stop(); }
+  function stopTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+  function auto() { stopTimer(); timer = setTimeout(function () { if (playing) { if (s < N - 1) { next(); auto(); } else stop(); } }, 3500); }
+  function play() { playing = true; $('play').innerHTML = '&#10074;&#10074;'; if (s >= N - 1) go(0); auto(); }
+  function stop() { playing = false; $('play').innerHTML = '&#9654;'; stopTimer(); }
+
+  $('next').addEventListener('click', function () { stop(); next(); });
+  $('prev').addEventListener('click', function () { stop(); go(s - 1); });
+  $('play').addEventListener('click', function () { playing ? stop() : play(); });
+  $('replay').addEventListener('click', function () { go(0); play(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') { stop(); next(); }
+    if (e.key === 'ArrowLeft') { stop(); go(s - 1); }
+  });
+
+  // deck-step API: the parent deck drives the steps over postMessage
+  addEventListener('message', function (e) {
+    var d = e && e.data;
+    if (!d || !d.anim) return;
+    if (d.anim === 'next') { stop(); next(); }
+    else if (d.anim === 'prev') { stop(); go(s - 1); }
+    else if (d.anim === 'goto' && isFinite(d.step)) { stop(); goInstant(d.step - 1); }
+  });
+
+  // boot: no autoplay; park instantly (hash keeps its 0-based step index meaning)
+  var h = parseInt((location.hash || '').slice(1), 10);
+  stop();
+  if (isFinite(h)) goInstant(h); else parkStart();
+})();
+</script>
+<script>
+(function () {
+  var d = document.documentElement;
+  function apply(t) { d.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light'); }
+  var m = (location.search.match(/[?&]theme=(dark|light)/) || [])[1];
+  apply(m || 'light');
+  addEventListener('message', function (e) {
+    if (e && e.data && (e.data.theme === 'dark' || e.data.theme === 'light')) apply(e.data.theme);
+  });
+})();
+</script>
+</body>
+</html>

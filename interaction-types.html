@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interaction Types</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>Absorption, stimulated emission and spontaneous emission</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Interaction Types animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'Interaction Types', heading: 'Absorption, stimulated emission and spontaneous emission' };
+
+/* ================= the three processes of chapter 1, one atom, one photon wave packet ================= */
+const PROCS = [
+  ['abs', 'Absorption', C.rand, 'atom in a, wave comes in'],
+  ['stim', 'Stimulated emission', C.ok, 'atom in b, wave comes in'],
+  ['spon', 'Spontaneous emission', C.bunch, 'atom in b, no wave']];
+const PCOL = { abs: C.rand, stim: C.ok, spon: C.bunch };
+const PNAME = { abs: 'absorption', stim: 'stimulated emission', spon: 'spontaneous emission' };
+const P = { proc: 'abs', spd: 1 };
+const TAU = 1.2, GAMMA = 1 / TAU;                 // lifetime of b in animation seconds at speed 1, decay rate
+const V = 300;                                    // speed of a wave packet, px per second
+const X0 = 80, XA = 700, XOUT = 1000;             // packet start, atom, end of the outgoing lane
+const YB = 370, YA = 650, YM = (YB + YA) / 2;     // level b, level a, height of the lane
+const LEN = 180, LAM = 36, AMP = 22;              // packet length, wavelength and amplitude in px
+const T_IN = (XA - X0) / V, T_OUT2 = (XOUT - XA) / V, D_OUT1 = 260, T_OUT1 = D_OUT1 / V + 0.4;
+const T_HOLD = 1.6, T_RESET = 0.7, T_MOVE = 0.45;
+const smooth = u => (u = Math.max(0, Math.min(1, u)), u * u * (3 - 2 * u));
+const TWO_PI = 2 * Math.PI;
+
+/* decay times of the spontaneous process, in units of tau, for the survival curve of step 5 */
+const sampleDecay = () => R.exp(GAMMA);
+const DEC = { n: 0, NB: 40, BW: 0.1, hist: new Float64Array(41) };
+function recordDecay(td) { DEC.hist[Math.min(DEC.NB, Math.floor(td / TAU / DEC.BW))]++; DEC.n++; }
+function survival(k) {                            // fraction of the recorded atoms still in b at t = k BW tau
+  let s = 0; for (let j = 0; j < k; j++) s += DEC.hist[j];
+  return DEC.n ? (DEC.n - s) / DEC.n : 1;
+}
+
+/* ---------- one cycle of the chosen process ---------- */
+let S;
+const startPos = () => P.proc === 'abs' ? 0 : 1;   // 0: level a, 1: level b
+function startCycle() {
+  S.st = 0; S.evIn = 0; S.evOut = 0; S.phiIn = Math.random() * TWO_PI;
+  S.pos = startPos();
+  if (P.proc === 'spon') { S.stage = 'wait'; S.td = sampleDecay(); S.theta = Math.random() * TWO_PI; S.phi = Math.random() * TWO_PI; }
+  else S.stage = 'in';
+}
+function reset() { S = { nIn: 0, nOut: 0, cycles: 0 }; startCycle(); }
+function stageLen() {
+  return { in: T_IN, absorb: T_HOLD, emit2: T_OUT2, wait: S.td, emit1: T_OUT1, reset: T_RESET }[S.stage];
+}
+function advance(dt) {
+  S.st += dt;
+  for (let guard = 0; guard < 8; guard++) {
+    const L = stageLen();
+    if (S.st < L) break;
+    S.st -= L;
+    if (S.stage === 'in') {
+      S.nIn++; S.evIn = 1;
+      if (P.proc === 'abs') S.stage = 'absorb';
+      else { S.stage = 'emit2'; S.nOut += 2; S.evOut = 2; }
+    } else if (S.stage === 'wait') { recordDecay(S.td); S.stage = 'emit1'; S.nOut++; S.evOut = 1; }
+    else if (S.stage === 'reset') { S.cycles++; startCycle(); break; }
+    else S.stage = 'reset';
+  }
+  const moving = S.stage === 'absorb' || S.stage === 'emit2' || S.stage === 'emit1';
+  if (moving) { const u = smooth(S.st / T_MOVE); S.pos = P.proc === 'abs' ? u : 1 - u; }
+  if (S.stage === 'reset' && S.st >= T_RESET / 2) S.pos = startPos();
+}
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Two-level atom', cap: '1. The two-level atom and the light wave',
+    sub: 'The atom has a [ground state] a and an [excited state] b, whose energies differ by {ħω₀}; ω₀ is the [transition frequency]. The atom interacts with a monochromatic electromagnetic wave {E = E₀ cos(ωt + φ)} that is [quasi-resonant]: its frequency is close to the transition frequency, {ω ≈ ω₀}.',
+    show: ['levels', 'wave'], ctrl: ['spd'], proc: 'abs' },
+  { short: 'Absorption', cap: '2. Absorption',
+    sub: 'The atom is in the ground state a and interacts with the incoming wave. It ends in the excited state b. In the photon picture one photon goes in and no photon comes out.',
+    show: ['levels', 'packets', 'counters', 'notes'], ctrl: ['proc', 'spd'], proc: 'abs' },
+  { short: 'Stimulated emission', cap: '3. Stimulated emission',
+    sub: 'The atom is in the excited state b and interacts with the incoming wave. It decays to the ground state a, and the emitted wave has the same direction and the same phase as the incoming wave: one photon goes in, two identical photons come out. Stimulated emission was predicted by Einstein and is the basis of the laser.',
+    show: ['levels', 'packets', 'counters', 'notes'], ctrl: ['proc', 'spd'], proc: 'stim' },
+  { short: 'Spontaneous emission', cap: '4. Spontaneous emission',
+    sub: 'The atom is in the excited state b and no wave comes in. It decays by itself to the ground state a; the emitted wave has a random direction and a random phase. No photon goes in, one photon comes out. To describe this process, a quantization of the electromagnetic field is required.',
+    show: ['levels', 'packets', 'counters', 'notes'], ctrl: ['proc', 'spd'], proc: 'spon' },
+  { short: 'Decay rate, lifetime', cap: '5. The decay rate and the lifetime',
+    sub: 'The moment of the spontaneous decay is random. The probability that the atom is still in b after the time t is {P = exp(−Γ t) = exp(−t/τ)}, with the [decay rate] Γ of the excited state and its [lifetime] {τ = 1/Γ}. The curve shows this law; the dots show the fraction of many repeated atoms that had not yet decayed at t.',
+    show: ['levels', 'packets', 'counters', 'notes', 'decay'], ctrl: ['spd'], proc: 'spon' },
+  { short: 'The three processes', cap: '6. The three processes',
+    sub: 'The initial state of the atom, the photons going in and coming out, and the emitted light for the three processes. The same incoming wave drives absorption from a and stimulated emission from b; spontaneous emission needs no incoming wave.',
+    show: ['table'], ctrl: ['proc'] }
+];
+STEPS.forEach(St => { if (St.proc) St.enter = () => { if (P.proc !== St.proc || !S) { P.proc = St.proc; reset(); } }; });
+const CTRL = {
+  proc: { kind: 'seg', label: 'process', options: PROCS, get: () => P.proc, set: v => { P.proc = v; reset(); } },
+  spd: { kind: 'log', label: 'speed', min: 0.25, max: 4, get: () => P.spd, set: v => { P.spd = v; }, fmt: v => v.toFixed(2) + ' x' }
+};
+
+/* ================= drawing ================= */
+const W = { t: 0 };
+function packet(cx, cy, ang, phase, amp, a) {
+  if (a < 0.01) return;
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+  ctx.beginPath();
+  for (let s = -LEN / 2; s <= LEN / 2; s += 2) {
+    const env = Math.exp(-(s * s) / ((LEN / 4) * (LEN / 4)));
+    const y = -amp * env * Math.cos(TWO_PI * s / LAM + phase);
+    s === -LEN / 2 ? ctx.moveTo(s, y) : ctx.lineTo(s, y);
+  }
+  ctx.strokeStyle = C.photon; ctx.lineWidth = 3; ctx.globalAlpha = GA * a; ctx.stroke(); ctx.globalAlpha = GA;
+  ctx.restore();
+}
+function drawLevels() {
+  for (const [y, name, sub] of [[YB, 'b', 'excited state'], [YA, 'a', 'ground state']]) {
+    line(600, y, 800, y, C.ink, 3.5);
+    txt(name, 818, y + 10, { size: 30, weight: 700 });
+    txt(sub, 852, y + 9, { size: 19, color: C.muted });
+  }
+  line(XA, YB, XA, YA, C.muted, 1.5, [6, 6]);
+  arrow(630, YM - 4, 630, YB + 8, C.field, 2.2, 10); arrow(630, YM + 4, 630, YA - 8, C.field, 2.2, 10);
+  txtBg('ħω₀', 644, YM + 9, { size: 24, weight: 700, color: C.field, solid: true });
+}
+function drawAtom() {
+  const y = YA + (YB - YA) * S.pos;
+  let a = 1, note = '';
+  if (S.stage === 'reset') {
+    const h = T_RESET / 2;
+    a = S.st < h ? 1 - S.st / h : (S.st - h) / h;
+    note = S.st < h ? '' : 'atom prepared in ' + (startPos() ? 'b' : 'a') + ' again';
+  }
+  const moving = S.stage === 'absorb' || S.stage === 'emit2' || S.stage === 'emit1';
+  if (moving && S.st < 0.6) {
+    const u = S.st / 0.6;
+    ctx.beginPath(); ctx.arc(XA, y, 16 + 40 * u, 0, 7); ctx.strokeStyle = alpha(C.term, 0.6 * (1 - u)); ctx.lineWidth = 3; ctx.stroke();
+  }
+  group(a, () => {
+    dot(XA, y, 13, C.term, true);
+    txtBg('atom', XA - 26, y + 7, { size: 18, weight: 700, align: 'right', color: C.term });
+  });
+  if (note) txtBg(note, XA, YA + 52, { size: 17, align: 'center', color: C.muted, solid: true });
+}
+function drawWave() {
+  ctx.fillStyle = alpha(C.photon, .07); ctx.fillRect(X0, YM - 30, 480, 60);
+  ctx.beginPath();
+  for (let x = X0; x <= X0 + 480; x += 2) {
+    const y = YM - AMP * Math.cos(TWO_PI * (x - X0) / LAM - TWO_PI * 1.2 * W.t);
+    x === X0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = C.photon; ctx.lineWidth = 3; ctx.stroke();
+  txt('incoming wave  E = E₀ cos(ωt + φ)', X0, YM - 48, { size: 22, weight: 700, color: C.photonTxt });
+  txt('monochromatic, quasi-resonant: ω ≈ ω₀', X0, YM + 64, { size: 21, color: C.photonTxt });
+  arrow(X0 + 380, YM + 90, X0 + 470, YM + 90, C.muted, 2, 10);
+  txt('propagation', X0 + 370, YM + 96, { size: 17, align: 'right', color: C.muted });
+}
+function drawPackets() {
+  const st = S.st, sg = S.stage;
+  if (P.proc !== 'spon') { ctx.fillStyle = alpha(C.photon, .06); ctx.fillRect(X0, YM - 30, (P.proc === 'stim' ? XOUT : XA) - X0, 60); }
+  if (sg === 'in') {
+    const x = X0 + V * st, a = Math.min(1, st / 0.25);
+    packet(x, YM, 0, S.phiIn, AMP, a);
+    txtBg('photon', x, YM - 36, { size: 18, weight: 700, align: 'center', color: C.photonTxt, alpha: a });
+  } else if (sg === 'absorb') {
+    packet(XA, YM, 0, S.phiIn, AMP, Math.max(0, 1 - st / 0.3));
+    if (st > 0.3) txtBg('photon absorbed, nothing comes out', XA, YA + 70, { size: 19, weight: 700, align: 'center', color: PCOL.abs });
+  } else if (sg === 'emit2') {
+    const x = XA + V * st, a = 1 - smooth((x - (XOUT - 110)) / 100);
+    packet(x, YM - 18, 0, S.phiIn, 14, a); packet(x, YM + 18, 0, S.phiIn, 14, a);
+    txtBg('two identical photons: same direction, same phase', Math.min(x, 790), YM + 60, { size: 18, weight: 700, align: 'center', color: PCOL.stim, alpha: a });
+  } else if (sg === 'emit1') {
+    const d = V * st, a = 1 - smooth((d - (D_OUT1 - 100)) / 100);
+    const cx = XA + (d + 60) * Math.cos(S.theta), cy = YM + (d + 60) * Math.sin(S.theta);
+    packet(cx, cy, S.theta, S.phi, AMP, a);
+    txtBg('one photon, random direction and phase', 880, YA + 100, { size: 18, weight: 700, align: 'center', color: PCOL.spon, alpha: a });
+  } else if (sg === 'wait') {
+    txtBg('no wave comes in, the atom waits in b', 380, YM + 8, { size: 19, align: 'center', color: C.muted });
+  }
+}
+const PX = 1090, PX2 = 1550;
+function drawCounters() {
+  txt('photon counters, all events so far', PX, 210, { size: 18, weight: 700, color: C.muted });
+  txt('photons in', PX, 258, { size: 22, color: C.muted });
+  txt(String(S.nIn), PX2, 262, { size: 34, weight: 700, mono: true, align: 'right', color: C.photonTxt });
+  txt('photons out', PX, 306, { size: 22, color: C.muted });
+  txt(String(S.nOut), PX2, 310, { size: 34, weight: 700, mono: true, align: 'right', color: C.photonTxt });
+  const ev = { abs: '1 in, 0 out', stim: '1 in, 2 out', spon: '0 in, 1 out' }[P.proc];
+  txt('each event: ' + ev, PX, 348, { size: 19, weight: 700, color: PCOL[P.proc] });
+}
+const deg = th => Math.round(((th * 180 / Math.PI) % 360 + 360) % 360);
+function drawNotes(aD) {
+  const col = PCOL[P.proc], rows = [];
+  txt(PNAME[P.proc], PX, 418, { size: 25, weight: 700, color: col });
+  if (P.proc === 'abs') rows.push(['atom: a → b', C.ink], ['condition: ω ≈ ω₀, quasi-resonant', C.muted]);
+  else if (P.proc === 'stim') {
+    rows.push(['atom: b → a', C.ink], ['incoming phase  ' + S.phiIn.toFixed(2) + ' rad', C.muted]);
+    rows.push([S.stage === 'emit2' || S.stage === 'reset' ? 'emitted phase   ' + S.phiIn.toFixed(2) + ' rad, the same' : 'emitted phase   ...', C.muted]);
+    rows.push(['direction: the same as the incoming wave', C.muted]);
+  } else {
+    rows.push(['atom: b → a, after a random time', C.ink]);
+    const done = S.stage === 'emit1' || S.stage === 'reset';
+    rows.push(['direction  ' + (done ? deg(S.theta) + '°, random' : '...'), C.muted]);
+    rows.push(['phase  ' + (done ? S.phi.toFixed(2) + ' rad, random' : '...'), C.muted]);
+    if (aD > 0.01) group(aD, () => {
+      const t = S.stage === 'wait' ? S.st : S.stage === 'emit1' || S.stage === 'reset' ? S.td : 0;
+      txt((S.stage === 'wait' ? 'time in b so far  t = ' : 'decayed at  t = ') + (t / TAU).toFixed(2) + ' τ', PX, 548, { size: 19, weight: 700, color: col });
+    });
+  }
+  rows.forEach((r, k) => txt(r[0], PX, 452 + k * 29, { size: 19, color: r[1] }));
+}
+function drawDecay() {
+  const g = chart({ x: 1160, y: 600, w: 370, h: 200, xmin: 0, xmax: 4, ymin: 0, ymax: 1, xstep: 1, fs: 17, yticks: 2,
+    xlabel: 'time t after the excitation, in units of τ', ylabel: 'still in b', yoff: 58 });
+  ctx.beginPath();
+  for (let k = 0; k <= 80; k++) { const t = k / 20, X = g.X(t), Y = g.Y(Math.exp(-t)); k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+  ctx.strokeStyle = C.field; ctx.lineWidth = 2.5; ctx.stroke();
+  line(g.X(1), g.Y(0), g.X(1), g.Y(Math.exp(-1)), C.muted, 1.5, [5, 5]);
+  txt('τ', g.X(1) + 6, g.Y(Math.exp(-1)) - 8, { size: 18, weight: 700, color: C.muted });
+  if (DEC.n) for (let k = 0; k <= DEC.NB; k++) dot(g.X(k * DEC.BW), g.Y(survival(k)), 3.2, PCOL.spon);
+  txtBg('exp(−t/τ)', g.X(2.2), g.Y(Math.exp(-2.2)) - 14, { size: 19, weight: 700, color: C.field });
+  txt('dots: ' + DEC.n + ' repeated atoms', 1160, 590, { size: 17, color: PCOL.spon });
+  if (S.stage === 'wait') {
+    const t = S.st / TAU; if (t <= 4) { dot(g.X(t), g.Y(Math.exp(-t)), 7, C.term, true); }
+  }
+}
+const COLS = [60, 360, 520, 670, 820, 1240], COLW = [300, 160, 150, 150, 420, 300];
+const HEAD = ['process', 'atom', 'photons in', 'photons out', 'emitted light', 'note'];
+const ROWS = [
+  ['abs', ['Absorption'], ['a → b'], ['1'], ['0'], ['none'], ['quasi-resonant:', 'ω ≈ ω₀']],
+  ['stim', ['Stimulated', 'emission'], ['b → a'], ['1'], ['2'], ['same direction,', 'same phase,', 'same frequency', 'as the incoming wave'], ['predicted by Einstein,', 'basis of the laser']],
+  ['spon', ['Spontaneous', 'emission'], ['b → a'], ['0'], ['1'], ['random direction,', 'random phase'], ['decay law exp(−t/τ),', 'needs the quantized', 'electromagnetic field']]];
+function drawTable() {
+  const y0 = 225, rh = 172;
+  HEAD.forEach((h, i) => txt(h, COLS[i] + (i >= 2 && i <= 3 ? COLW[i] / 2 : 0), y0, { size: 20, weight: 700, align: i >= 2 && i <= 3 ? 'center' : 'left', color: C.muted }));
+  line(60, y0 + 14, 1540, y0 + 14, C.muted, 2);
+  ROWS.forEach((r, k) => {
+    const y = y0 + 30 + k * rh, col = PCOL[r[0]], on = P.proc === r[0];
+    if (on) rrect(50, y - 6, 1500, rh - 8, 10, alpha(col, .09));
+    for (let i = 1; i < 7; i++) {
+      const lines = r[i], num = i >= 3 && i <= 4, big = i === 1;
+      lines.forEach((s, j) => txt(s, COLS[i - 1] + (num ? COLW[i - 1] / 2 : 0), y + (num ? 78 : 40) + j * 30,
+        { size: big ? 28 : num ? 42 : 22, weight: big || num ? 700 : 400, mono: num, align: num ? 'center' : 'left', color: big ? col : C.ink }));
+    }
+    line(60, y + rh - 14, 1540, y + rh - 14, C.grid, 1.5);
+  });
+  txt('the selector on the left highlights one row', 60, y0 + 30 + 3 * rh + 22, { size: 17, color: C.muted });
+}
+
+function sceneInit() { reset(); }
+function sceneStep(dt) {
+  W.t += dt * P.spd;
+  if (cur >= 1 && cur <= 4) advance(dt * P.spd);
+  if (cur === 4) for (let k = 0; k < 150 && DEC.n < 20000; k++) recordDecay(sampleDecay());
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aL = a('levels'), aW = a('wave'), aP = a('packets'), aC = a('counters'), aN = a('notes'), aD = a('decay'), aT = a('table');
+  group(aL, drawLevels);
+  group(aW, drawWave);
+  group(aP, drawPackets);
+  group(aL, drawAtom);
+  group(aC, drawCounters);
+  group(aN, () => drawNotes(aD));
+  group(aD, drawDecay);
+  group(aT, drawTable);
+}
+const SIM_HOOK = () => ({ P, get S() { return S; }, DEC, TAU, GAMMA, V, T_IN, sampleDecay, recordDecay, survival, reset, advance, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

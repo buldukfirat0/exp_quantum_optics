@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doppler Shift</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>The Doppler shift seen by a moving atom</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Doppler Shift animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'Doppler Shift', heading: 'The Doppler shift seen by a moving atom' };
+
+/* ================= units =================
+   wavelength 1, period 1, so c = 1 and every velocity is a fraction of c. The wave runs along +x.
+   Phase of the wave at (x, t): 2 pi (t - x). A crest passes a point whenever this phase grows by 2 pi,
+   so the frequency seen at a point moving with x = v_x t is (1 - v_x) in units of omega: omega - k.v. */
+const LAM = 200, X0 = 90, XSPAN = 5;                      // px per wavelength, px of x = 0, wrap after 5 wavelengths
+const BX0 = 60, BX1 = 1120, BY0 = 210, BY1 = 480;         // wave band
+const PY0 = 305, PY1 = 445;                               // vertical lane of the atoms inside the band
+const XF = 1.5, YF = 258;                                 // fixed point, above the lane
+const DT = 1 / 64, WIN = 6, NG = 500;                     // simulation step and trace window in periods, atoms in the gas
+const TX0 = 60, TX1 = 1120, PPX = (TX1 - TX0) / WIN;      // traces
+const P = { v: 0.3, th: 0, spd: 0.5, sig: 0.08 };
+const RAD = () => P.th * Math.PI / 180;
+const seen = () => 1 - P.v * Math.cos(RAD());             // (omega - k.v) / omega
+let S;
+const wrapY = y => y < PY0 ? y + (PY1 - PY0) : y > PY1 ? y - (PY1 - PY0) : y;
+function makeGas() {
+  const g = [];
+  for (let i = 0; i < NG; i++) g.push({ x: Math.random() * XSPAN, py: PY0 + Math.random() * (PY1 - PY0), vx: P.sig * R.gauss(), vy: P.sig * R.gauss() });
+  return g;
+}
+const crestsF = () => Math.floor(S.t - XF), crestsA = () => Math.floor(S.t - S.x);
+function reset() {
+  S = { t: 0, x: XF, py: 380, acc: 0, trF: [], trA: [], lastF: 0, lastA: 0, fxF: 0, fxA: 0, gas: makeGas(), ys: null };
+  resetCount();
+}
+function resetCount() { S.nF0 = crestsF(); S.nA0 = crestsA(); S.t0 = S.t; }
+/* moves the atom by one wavelength if it sits under the fixed point; the phase at the atom is unchanged */
+function sideStep() { const d = ((S.x - XF) % XSPAN + XSPAN) % XSPAN; if (d < 0.6 || d > XSPAN - 0.6) S.x += 1; }
+const counts = () => ({ F: crestsF() - S.nF0, A: crestsA() - S.nA0, T: S.t - S.t0 });
+function step() {
+  const c = Math.cos(RAD()), s = Math.sin(RAD());
+  S.t += DT; S.x += P.v * c * DT; S.py = wrapY(S.py - P.v * s * DT * LAM);
+  const nF = crestsF(), nA = crestsA();
+  if (nF !== S.lastF) { S.lastF = nF; S.fxF = 1; }
+  if (nA !== S.lastA) { S.lastA = nA; S.fxA = 1; }
+  S.trF.push(S.t, Math.cos(2 * Math.PI * (S.t - XF)));
+  S.trA.push(S.t, Math.cos(2 * Math.PI * (S.t - S.x)));
+  const keep = 2 * Math.round(WIN / DT + 20);
+  if (S.trF.length > keep) { S.trF.splice(0, 2); S.trA.splice(0, 2); }
+  if (cur === 5 || FADE.gas > 0) for (const g of S.gas) {
+    g.x += g.vx * DT; if (g.x >= XSPAN) g.x -= XSPAN; else if (g.x < 0) g.x += XSPAN;
+    g.py = wrapY(g.py - g.vy * DT * LAM);
+  }
+}
+function gasStats() {
+  let s1 = 0, s2 = 0;
+  for (const g of S.gas) { const r = 1 - g.vx; s1 += r; s2 += r * r; }
+  const m = s1 / NG; return { mean: m, sd: Math.sqrt(Math.max(0, s2 / NG - m * m)) };
+}
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Plane wave', cap: '1. The plane wave',
+    sub: 'A [plane wave] {E = E₀ cos(ωt − k·r)} travels along its [wave vector] {k}; the crests move at the speed of light c. At a fixed point the field oscillates with the [angular frequency] {ω}: one crest passes per period T.',
+    show: ['wave', 'fixed', 'trace', 'fA'], ctrl: ['spd'], enter() { P.th = 0; } },
+  { short: 'Moving atom', cap: '2. The moving atom',
+    sub: 'The atom moves with the constant velocity {v}, so the position of its nucleus is {r₀ = v t}. The field at the atom is {E₀ cos(ωt − k·v t)}. The velocity is set as a fraction of c and is chosen much larger than in a gas, so that the effect is visible.',
+    show: ['wave', 'fixed', 'trace', 'fA', 'atom', 'fB'], ctrl: ['v', 'spd'], enter() { P.th = 0; } },
+  { short: 'Seen frequency', cap: '3. The frequency seen by the atom',
+    sub: 'Written as {E₀ cos[(ω − k·v) t]}, the field at the atom oscillates with the [Doppler-shifted frequency] {ω − k·v}. The lower trace shows this field. The crests passing the atom and the crests passing the fixed point are counted on the right; their ratio is the ratio of the two frequencies.',
+    show: ['wave', 'fixed', 'trace', 'fA', 'atom', 'fB', 'traceA', 'fC', 'fD', 'fE'], ctrl: ['v', 'spd'], enter() { P.th = 0; resetCount(); } },
+  { short: 'Sign of the shift', cap: '4. The sign of the shift',
+    sub: 'The [frequency displacement] is {Δω = −k·v}. An atom moving along the wave sees a lower frequency, an atom moving against the wave a higher one. With {|k| = ω/c} the displacement is {Δω = −ω vₖ / c}, where {vₖ} is the velocity component along k.',
+    show: ['wave', 'fixed', 'trace', 'fA', 'atom', 'fB', 'traceA', 'fC', 'fD', 'fE', 'scale'], ctrl: ['v', 'spd'], enter() { P.th = 0; resetCount(); } },
+  { short: 'Direction of v', cap: '5. The direction of the velocity',
+    sub: 'Only the velocity component along {k} enters: {k·v = |k| |v| cos θ}, with θ the [angle between v and k]. For motion perpendicular to k, {θ = 90°}, the shift vanishes: the atom moves, but sees the frequency ω of the wave.',
+    show: ['wave', 'fixed', 'trace', 'fA', 'atom', 'fB', 'traceA', 'fC', 'fD', 'fE', 'scale', 'vec'], ctrl: ['vmag', 'th', 'spd'],
+    enter() { P.v = Math.abs(P.v) || 0.3; P.th = 90; sideStep(); resetCount(); } },
+  { short: 'Doppler broadening', cap: '6. Doppler broadening',
+    sub: 'In a gas the atoms move with different velocities in different directions, so each atom sees its own frequency {ω − k·v} and is resonant with light of a different frequency. The line of the gas is the sum of many lines at different positions: [Doppler broadening], a case of [inhomogeneous broadening]. Its width grows with the spread of the velocities.',
+    show: ['wave', 'fA', 'fB', 'fC', 'gas', 'hist'], ctrl: ['sig', 'spd'] }
+];
+const fmtV = v => (v < 0 ? '−' : v > 0 ? '+' : '') + Math.abs(v).toFixed(2) + ' c';
+const CTRL = {
+  v: { kind: 'range', label: 'velocity v / c', min: -0.6, max: 0.6, step: 0.05, get: () => P.v, set: v => { P.v = v; resetCount(); }, fmt: fmtV },
+  vmag: { kind: 'range', label: 'speed |v| / c', min: 0, max: 0.6, step: 0.05, get: () => P.v, set: v => { P.v = v; resetCount(); }, fmt: v => v.toFixed(2) + ' c' },
+  th: { kind: 'range', label: 'angle θ between v and k', min: 0, max: 180, step: 5, get: () => P.th, set: v => { P.th = v; resetCount(); }, fmt: v => v + '°' },
+  spd: { kind: 'log', label: 'speed', min: 0.1, max: 3, get: () => P.spd, set: v => { P.spd = v; }, fmt: v => v.toFixed(2) + ' periods/s' },
+  sig: { kind: 'range', label: 'velocity spread σ / c', min: 0.02, max: 0.15, step: 0.01, get: () => P.sig, set: v => { P.sig = v; S.gas = makeGas(); }, fmt: v => v.toFixed(2) + ' c' }
+};
+
+/* ================= drawing ================= */
+const shiftCol = r => r < 0.999 ? C.hot : r > 1.001 ? C.rand : C.ink;
+const shiftWord = r => r < 0.999 ? 'lower' : r > 1.001 ? 'higher' : 'no shift';
+function fml(segs, x, y, size, color, weight) {
+  let cx = x;
+  for (const s of segs) {
+    if (typeof s === 'string') cx += txt(s, cx, y, { size: size, color: color, weight: weight });
+    else cx += txt(s.sub, cx + 1, y + size * 0.3, { size: size * 0.7, color: color, weight: weight }) + 3;
+  }
+  return cx - x;
+}
+function drawWave() {
+  const t = S.t;
+  for (let px = BX0; px < BX1; px += 4) {
+    const val = Math.cos(2 * Math.PI * (t - (px + 2 - X0) / LAM));
+    ctx.fillStyle = alpha(C.field, 0.04 + 0.2 * (val + 1) / 2); ctx.fillRect(px, BY0, 4, BY1 - BY0);
+  }
+  rrect(BX0, BY0, BX1 - BX0, BY1 - BY0, 8, null, C.line, 1.5);
+  const f = t - Math.floor(t);                            // crests at x = f + n
+  let first = null, second = null;
+  for (let n = -1; n <= XSPAN; n++) {
+    const px = X0 + (f + n) * LAM; if (px < BX0 + 2 || px > BX1 - 2) continue;
+    line(px, BY0, px, BY1, C.field, 2.5);
+    if (first == null) first = px; else if (second == null) second = px;
+  }
+  if (first != null && second != null) bracket(first, second, BY1 + 20, 'wavelength λ', C.field, 17);
+  txt('plane wave, the crests move to the right at the speed of light c', BX0, 198, { size: 19, color: C.muted });
+  txt('wave vector k', 985, 198, { size: 19, weight: 700, align: 'right', color: C.field });
+  arrow(1000, 191, 1090, 191, C.field, 3, 12);
+}
+function drawFixed() {
+  const px = X0 + XF * LAM;
+  if (S.fxF > 0.02) { ctx.beginPath(); ctx.arc(px, YF, 12 + 24 * (1 - S.fxF), 0, 7); ctx.strokeStyle = alpha(C.ink, 0.7 * S.fxF); ctx.lineWidth = 3; ctx.stroke(); }
+  line(px - 14, YF, px + 14, YF, C.ink, 2); line(px, YF - 14, px, YF + 14, C.ink, 2);
+  ctx.beginPath(); ctx.arc(px, YF, 8, 0, 7); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+  txtBg('fixed point', px, YF - 26, { size: 18, weight: 700, align: 'center' });
+}
+const atomPx = () => X0 + (((S.x % XSPAN) + XSPAN) % XSPAN) * LAM;
+function drawAtom() {
+  const px = atomPx(), py = S.py, c = Math.cos(RAD()), s = Math.sin(RAD());
+  const L = 150 * P.v, sg = Math.sign(L), dx = sg * c, dy = -sg * s;   // screen direction of the velocity
+  if (S.fxA > 0.02) { ctx.beginPath(); ctx.arc(px, py, 14 + 26 * (1 - S.fxA), 0, 7); ctx.strokeStyle = alpha(C.photonTxt, 0.8 * S.fxA); ctx.lineWidth = 3; ctx.stroke(); }
+  if (Math.abs(L) > 4) {
+    arrow(px, py, px + L * c, py - L * s, C.photonTxt, 3, 12);
+    txt('v', px + (Math.abs(L) + 18) * dx, py + (Math.abs(L) + 18) * dy + 7, { size: 22, weight: 700, align: 'center', color: C.photonTxt });
+  }
+  dot(px, py, 11, C.photon, true);
+  if (sg === 0) txtBg('atom', px, py + 40, { size: 18, weight: 700, align: 'center', color: C.photonTxt });
+  else txtBg('atom', px - 36 * dx, py - 36 * dy + 7, { size: 18, weight: 700, align: 'center', color: C.photonTxt });
+}
+function traceLine(tr, yc, amp, col) {
+  line(TX0, yc, TX1, yc, C.grid, 1);
+  ctx.beginPath(); let started = false;
+  for (let i = 0; i < tr.length; i += 2) {
+    const X = TX1 - (S.t - tr[i]) * PPX; if (X < TX0) continue;
+    const Y = yc - amp * tr[i + 1]; if (started) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); started = true;
+  }
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+  for (let i = 2; i < tr.length - 2; i += 2) {
+    if (tr[i + 1] >= tr[i - 1] && tr[i + 1] > tr[i + 3] && tr[i + 1] > 0.5) {
+      const X = TX1 - (S.t - tr[i]) * PPX; if (X >= TX0) line(X, yc - amp - 16, X, yc - amp - 4, col, 3);
+    }
+  }
+}
+function drawTraces(aA) {
+  txt('field at the fixed point, the ticks mark the crests', TX0, 588, { size: 19, weight: 700, color: C.field });
+  traceLine(S.trF, 655, 42, C.field);
+  if (aA > 0.01) group(aA, () => {
+    txt('field at the atom', TX0, 718, { size: 19, weight: 700, color: C.photonTxt });
+    traceLine(S.trA, 785, 42, C.photonTxt);
+  });
+  line(TX1, 600, TX1, 836, C.muted, 1.5, [5, 5]);
+  txt('now', TX1, 862, { size: 18, weight: 700, align: 'center', color: C.muted });
+  arrow(TX0, 848, TX0 + 110, 848, C.muted, 2, 11); txt('time', TX0 + 122, 854, { size: 18, color: C.muted });
+  bracket(TX1 - 3 * PPX, TX1 - 2 * PPX, 848, 'one period T of the wave', C.muted, 17);
+}
+const FX = 1160;
+function drawRowA() { txt('plane wave', FX, 205, { size: 17, color: C.muted }); fml(['E = E', { sub: '0' }, ' cos(ωt − k·r)'], FX, 236, 22, C.field, 600); }
+function drawRowB() { txt('moving atom', FX, 276, { size: 17, color: C.muted }); fml(['r', { sub: '0' }, ' = v t'], FX, 307, 22, C.photonTxt, 600); }
+function drawRowC() { txt('field at the atom', FX, 347, { size: 17, color: C.muted }); fml(['E', { sub: '0' }, ' cos[(ω − k·v) t]'], FX, 378, 22, C.photonTxt, 600); }
+function drawRowD() {
+  const r = seen(), col = shiftCol(r);
+  txt('frequency seen by the atom', FX, 418, { size: 17, color: C.muted });
+  const w = txt('ω − k·v = ' + r.toFixed(2) + ' ω', FX, 456, { size: 28, weight: 700, color: col });
+  txt(shiftWord(r), FX + w + 14, 456, { size: 20, weight: 700, color: col });
+}
+function drawRowE() {
+  const c = counts();
+  txt('crests passed since the last change', FX, 496, { size: 17, color: C.muted });
+  const cell = (k, v, x, col) => { const w = txt(k, x, 528, { size: 18, color: C.muted }); txt(v, x + w + 8, 528, { size: 20, weight: 700, mono: true, color: col || C.ink }); };
+  cell('fixed point', String(c.F), FX); cell('atom', String(c.A), FX + 165, C.photonTxt);
+  cell('ratio', c.F >= 10 ? (c.A / c.F).toFixed(2) : '...', FX + 285, C.term);
+}
+function drawScale() {
+  const x0 = 1185, x1 = 1545, y = 652, X = r => x0 + (r - 0.4) / 1.2 * (x1 - x0);
+  const r = seen(), col = shiftCol(r);
+  txt('frequency scale', FX, 598, { size: 17, color: C.muted });
+  line(x0, y, x1, y, C.muted, 2);
+  for (const q of [0.5, 1.5]) { line(X(q), y, X(q), y + 6, C.muted, 1.2); txt(q.toFixed(1) + ' ω', X(q), y + 28, { size: 16, align: 'center', color: C.muted }); }
+  line(X(1), y - 12, X(1), y + 8, C.ink, 3); txt('ω, wave', X(1), y + 30, { size: 18, weight: 700, align: 'center' });
+  if (Math.abs(r - 1) > 0.005) arrow(X(1), y - 18, X(r), y - 18, col, 3, 11);
+  dot(X(r), y, 7, col);
+  txtBg('seen: ' + shiftWord(r), (X(1) + X(r)) / 2, y - 28, { size: 17, weight: 700, align: 'center', color: col });
+}
+function drawVec() {
+  const ox = 1290, oy = 795, th = RAD(), c = Math.cos(th), s = Math.sin(th);
+  const L = 130 * P.v, tx = ox + L * c, ty = oy - L * s, vk = P.v * c, col = shiftCol(1 - vk);
+  txt('only the component v cos θ along k enters k·v', FX, 705, { size: 17, color: C.muted });
+  arrow(ox, oy, ox + 140, oy, C.field, 3, 12); txt('k', ox + 152, oy + 7, { size: 22, weight: 700, color: C.field });
+  if (Math.abs(vk) > 0.003) line(ox, oy, tx, oy, col, 6);
+  if (L > 3) {
+    line(tx, ty, tx, oy, C.muted, 1.5, [5, 4]);
+    arrow(ox, oy, tx, ty, C.photonTxt, 3, 12);
+    txt('v', ox + (L + 18) * c, oy - (L + 18) * s + 7, { size: 22, weight: 700, align: 'center', color: C.photonTxt });
+    if (th > 0.05) {
+      ctx.beginPath(); ctx.arc(ox, oy, 30, 0, -th, true); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.8; ctx.stroke();
+      txt('θ', ox + 46 * Math.cos(th / 2), oy - 46 * Math.sin(th / 2) + 7, { size: 20, weight: 700, align: 'center', color: C.muted });
+    }
+  }
+  txt('v cos θ = ' + fmtV(Math.round(vk * 100) / 100), FX, 862, { size: 20, weight: 700, color: col });
+}
+function drawGas() {
+  for (const g of S.gas) { const px = X0 + g.x * LAM; line(px, g.py, px + g.vx * 250, g.py - g.vy * 250, C.photonTxt, 1.5); dot(px, g.py, 4.5, C.photon); }
+  txt('gas: ' + NG + ' atoms, each with its own velocity', BX1 - 10, 506, { size: 18, weight: 700, align: 'right', color: C.photonTxt });
+}
+const HB = 60, HMIN = 0.4, HMAX = 1.6, HBW = (HMAX - HMIN) / HB;
+function drawHist() {
+  const h = new Float64Array(HB); let top = 1;
+  for (const g of S.gas) { const k = Math.floor((1 - g.vx - HMIN) / HBW); if (k >= 0 && k < HB) h[k]++; }
+  for (let k = 0; k < HB; k++) top = Math.max(top, h[k]);
+  S.ys = ease(S.ys, top * 1.25, 5);
+  txt('frequency seen by each of the ' + NG + ' atoms', 580, 572, { size: 19, weight: 700, align: 'center' });
+  const g = chart({ x: 130, y: 585, w: 900, h: 235, xmin: HMIN, xmax: HMAX, ymin: 0, ymax: Math.max(2, S.ys), xstep: 0.2, yint: true,
+    xlabel: 'frequency seen by the atom, in units of ω', ylabel: 'atoms', yoff: 62 });
+  const bw = g.X(HBW) - g.X(0);
+  for (let k = 0; k < HB; k++) {
+    if (!h[k]) continue;
+    const r = HMIN + (k + 0.5) * HBW; ctx.fillStyle = alpha(r < 1 ? C.hot : C.rand, .6);
+    ctx.fillRect(g.X(HMIN + k * HBW) + 1, g.Y(h[k]), Math.max(1, bw - 2), g.Y(0) - g.Y(h[k]));
+  }
+  line(g.X(1), 585, g.X(1), 820, C.ink, 2, [8, 6]); txtBg('ω, wave', g.X(1), 606, { size: 17, weight: 700, align: 'center' });
+  const st = gasStats();
+  txt('gas of ' + NG + ' atoms', FX, 600, { size: 17, color: C.muted });
+  txt('velocity spread σ = ' + P.sig.toFixed(2) + ' c', FX, 632, { size: 21, weight: 700, color: C.photonTxt });
+  txt('spread of the seen frequency, measured', FX, 684, { size: 17, color: C.muted });
+  txt(st.sd.toFixed(3) + ' ω', FX, 722, { size: 30, weight: 700, mono: true, color: C.term });
+  txt('expected: σ ω = ' + P.sig.toFixed(3) + ' ω', FX, 752, { size: 17, color: C.muted });
+  txt('red: lower than ω, atom moves along the wave', FX, 806, { size: 17, weight: 600, color: C.hot });
+  txt('blue: higher than ω, atom moves against the wave', FX, 834, { size: 17, weight: 600, color: C.rand });
+}
+
+function sceneInit() { reset(); }
+function sceneStep(dt) {
+  S.acc += P.spd * dt; let n = 0;
+  while (S.acc >= DT && n < 40) { S.acc -= DT; step(); n++; }
+  if (S.acc > DT) S.acc = 0;
+  S.fxF = Math.max(0, S.fxF - dt * 4); S.fxA = Math.max(0, S.fxA - dt * 4);
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aW = a('wave'), aF = a('fixed'), aT = a('trace'), aAt = a('atom'), aTA = a('traceA'), aA = a('fA'), aB = a('fB'), aC = a('fC');
+  const aD = a('fD'), aE = a('fE'), aS = a('scale'), aV = a('vec'), aG = a('gas'), aH = a('hist');
+  group(aW, drawWave); group(aG, drawGas); group(aF, drawFixed); group(aAt, drawAtom);
+  group(aT, () => drawTraces(aTA));
+  group(aA, drawRowA); group(aB, drawRowB); group(aC, drawRowC); group(aD, drawRowD); group(aE, drawRowE);
+  group(aS, drawScale); group(aV, drawVec); group(aH, drawHist);
+}
+const SIM_HOOK = () => ({ P, get S() { return S; }, reset, resetCount, step, seen, counts, gasStats, atomPx, DT, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

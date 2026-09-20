@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visible-light photon counter (VLPC)</title>
+<style>
+  :root {
+    --bg: #e9e6df;  --panel: #f4f2ec;  --ink: #23272e;  --muted: #5d6570;
+    --line: #c6c0b2;
+    --elec: #2d5fb8;     /* free electron blue */
+    --hole: #c0392b;     /* hole red */
+    --photon: #b7791f;   /* photon amber, accent */
+    --term: #0f766e;     /* teal technical terms */
+    --signal: #15803d;   /* green output trace */
+    --field: #6d28d9;    /* violet bias circuit */
+    --hot: #c02626;
+    --donor: #8a6a1f;    /* arsenic donor outline */
+    --edge: #5a5346;
+  }
+  :root[data-theme="dark"] {
+    --bg: #171b20;  --panel: #262b31;  --ink: #ebe7dd;  --muted: #a1abb5;
+    --line: #3b414a;  --elec: #6ea3f2;  --hole: #f0736a;  --photon: #e3a94e;
+    --term: #37c6b8;  --signal: #51c77d;  --field: #ab8ffb;  --hot: #f06b6b;
+    --donor: #d4a94e;
+  }
+  html, body { transition: background-color .3s ease; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; padding: 10px 12px 12px; }
+  .bar { width: min(1250px, 97vw); display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px; }
+  .bar h1 { font-size: 21px; font-weight: 700; letter-spacing: .01em; }
+  .spacer { flex: 1; }
+  .bar button { background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 15px; font-size: 15px; cursor: pointer; }
+  .bar button:hover { border-color: var(--photon); }
+  .controls button { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .controls .chip { min-width: 34px; padding: 7px 0; text-align: center; font-size: 14px; }
+  .controls .chip.active { border-color: var(--photon); color: var(--photon); font-weight: 700; }
+  svg { width: min(1250px, 97vw); height: auto; max-height: calc(100vh - 110px); display: block; }
+
+  .cap  { font-size: 29px; font-weight: 700; fill: var(--ink); }
+  .cap2 { font-size: 20px; fill: var(--muted); }
+  .face { font-size: 18px; font-weight: 700; }
+  .lbl  { font-size: 17px; fill: var(--muted); }
+  .bom  { font-size: 18px; fill: var(--ink); }
+  .rlab { font-size: 20px; font-weight: 700; fill: var(--ink); }
+  .small{ font-size: 16px; fill: var(--muted); }
+  .term { font-size: 18px; font-weight: 600; fill: var(--term); }
+  .badge{ font-size: 24px; font-weight: 700; fill: var(--ink); }
+  .volt { font-size: 17px; font-weight: 600; fill: var(--field); font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  .fade { opacity: 0; transition: opacity .5s ease; pointer-events: none; }
+  .fade.on { opacity: 1; pointer-events: auto; }
+  :root.frozen * { transition: none !important; animation: none !important; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Visible-light photon counter (VLPC)</h1>
+  <span class="spacer"></span>
+  <button id="playall" type="button">&#9208;&ensp;Pause</button>
+</div>
+<div class="bar controls" role="group" aria-label="step controls">
+  <button id="prev" type="button" aria-label="previous step">&#9664;&ensp;Back</button>
+  <button id="next" type="button" aria-label="next step">Next&ensp;&#9654;</button>
+  <span id="chips" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+</div>
+
+<svg viewBox="0 0 1280 762" role="img" aria-label="Visible-light photon counter, built layer by layer, then operated">
+
+  <!-- captions -->
+  <text id="cap"  class="cap"  x="640" y="42" text-anchor="middle"></text>
+  <text id="cap2" class="cap2" x="640" y="74" text-anchor="middle"></text>
+
+  <!-- temperature badge (from step 6) -->
+  <g id="badgeT" class="fade">
+    <rect x="30" y="100" width="210" height="68" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="badge" x="135" y="132" text-anchor="middle" font-size="26">7 K</text>
+    <text class="small" x="135" y="156" text-anchor="middle" font-size="15">operating temperature</text>
+  </g>
+
+  <!-- photon-count selector (step 12 only; occupies the callout's screen area, mutually exclusive with it) -->
+  <g id="photonSel" class="fade">
+    <rect x="36" y="190" width="244" height="172" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="rlab" x="158" y="220" text-anchor="middle" font-size="17">photons in this pulse</text>
+    <g id="photonBtns"></g>
+  </g>
+
+  <!-- arsenic donor level callout (step 3 only) -->
+  <g id="callout" class="fade">
+    <rect x="36" y="190" width="310" height="172" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <line x1="76" y1="248" x2="322" y2="248" stroke="var(--ink)" stroke-width="2.5"/>
+    <text class="small" x="199" y="232" text-anchor="middle">conduction band</text>
+    <line x1="126" y1="312" x2="296" y2="312" stroke="var(--donor)" stroke-width="2.5"/>
+    <text class="small" x="211" y="340" text-anchor="middle">arsenic donor level</text>
+    <line x1="112" y1="248" x2="112" y2="312" stroke="var(--muted)" stroke-width="1.2"/>
+    <text class="term" x="38" y="286" font-size="17">54 meV</text>
+  </g>
+
+  <!-- bias circuit (from step 6): +V rail from transparent contact to contact region -->
+  <g id="circuit" class="fade">
+    <path d="M354,332 L354,240 L458,240" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <line x1="458" y1="222" x2="458" y2="258" stroke="var(--field)" stroke-width="3.4"/>
+    <line x1="472" y1="230" x2="472" y2="250" stroke="var(--field)" stroke-width="2.0"/>
+    <path d="M472,240 L790,240 L790,332" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <text class="volt" x="465" y="212" text-anchor="middle">+ 7 V</text>
+    <line x1="790" y1="268" x2="768" y2="268" stroke="var(--field)" stroke-width="2.0"/>
+    <line x1="768" y1="268" x2="768" y2="276" stroke="var(--field)" stroke-width="2.0"/>
+    <line x1="754" y1="276" x2="782" y2="276" stroke="var(--field)" stroke-width="2.6"/>
+    <line x1="759" y1="282" x2="777" y2="282" stroke="var(--field)" stroke-width="2.2"/>
+    <line x1="764" y1="288" x2="772" y2="288" stroke="var(--field)" stroke-width="2.0"/>
+    <text class="small" x="756" y="308" text-anchor="middle" font-size="15">ground</text>
+  </g>
+
+  <!-- ===================== THE DEVICE (oblique 3D, depth +46,-26) ===================== -->
+  <!-- DOM order left to right so each right neighbour covers the left one's side face -->
+
+  <!-- L6: antireflection coating, front x 300-318 -->
+  <g id="L6" class="fade">
+    <polygon points="318,350 318,500 364,474 364,324" fill="#8c8cab" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,350 318,350 364,324 346,324" fill="#bcbcd4" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,350 318,350 318,500 300,500" fill="#a6a6c2" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <!-- L5: transparent contact, front x 318-344 -->
+  <g id="L5" class="fade" fill-opacity="0.9">
+    <polygon points="344,350 344,500 390,474 390,324" fill="#93b3c5" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="318,350 344,350 390,324 364,324" fill="#cfe3ee" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="318,350 344,350 344,500 318,500" fill="#b7cfdd" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <!-- L4: intrinsic silicon, front x 344-494 -->
+  <g id="L4" class="fade">
+    <polygon points="494,350 494,500 540,474 540,324" fill="#a9bcc7" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="344,350 494,350 540,324 390,324" fill="#dee7ec" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="344,350 494,350 494,500 344,500" fill="#c6d4dc" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <text class="face" x="419" y="494" text-anchor="middle" fill="#2f3c45" stroke="#c6d4dc" stroke-width="3.5" paint-order="stroke">intrinsic silicon</text>
+  </g>
+  <!-- L3: gain region (As-doped), front x 494-684 -->
+  <g id="L3" class="fade">
+    <polygon points="684,350 684,500 730,474 730,324" fill="#c9ad86" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="494,350 684,350 730,324 540,324" fill="#ecd6bf" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="494,350 684,350 684,500 494,500" fill="#dcc3a6" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <text class="face" x="589" y="494" text-anchor="middle" fill="#5d4322" stroke="#dcc3a6" stroke-width="3.5" paint-order="stroke">gain region</text>
+  </g>
+  <!-- L2: drift region, front x 684-724 -->
+  <g id="L2" class="fade">
+    <polygon points="724,350 724,500 770,474 770,324" fill="#c2b795" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="684,350 724,350 770,324 730,324" fill="#efe9d8" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="684,350 724,350 724,500 684,500" fill="#ddd4bc" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+  <!-- L1: contact region, front x 724-810 -->
+  <g id="L1" class="fade">
+    <polygon points="810,350 810,500 856,474 856,324" fill="#9c9689" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="724,350 810,350 856,324 770,324" fill="#c9c3b6" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="724,350 810,350 810,500 724,500" fill="#b3ada0" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+  </g>
+
+  <!-- donors (populated by JS inside gain region) -->
+  <g id="donorsG"></g>
+
+  <!-- avalanche column boundaries (dashed, inside the gain region only) -->
+  <g id="colA" class="fade">
+    <line x1="494" y1="356" x2="684" y2="356" stroke="var(--term)" stroke-width="2" stroke-dasharray="6 5"/>
+    <line x1="494" y1="420" x2="684" y2="420" stroke="var(--term)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text class="term" x="694" y="392" font-size="16" stroke="#ddd4bc" stroke-width="3.5" paint-order="stroke">a few &#181;m across</text>
+  </g>
+  <g id="colB" class="fade">
+    <line x1="494" y1="436" x2="684" y2="436" stroke="var(--term)" stroke-width="2" stroke-dasharray="6 5"/>
+    <line x1="494" y1="480" x2="684" y2="480" stroke="var(--term)" stroke-width="2" stroke-dasharray="6 5"/>
+  </g>
+  <!-- dead-column tint -->
+  <rect id="deadA" x="495" y="357" width="188" height="62" fill="var(--panel)" opacity="0"/>
+
+  <!-- live particles + flashes -->
+  <g id="partsG"></g>
+  <g id="flashG"></g>
+
+  <!-- photon glyphs -->
+  <g id="ph1" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+    <text class="small" x="32" y="-16" text-anchor="middle" fill="var(--photon)" font-size="14">photon</text>
+  </g>
+  <g id="ph2" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+  <g id="ph3" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+  <g id="ph4" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+  <g id="ph5" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+  <g id="ph6" opacity="0">
+    <path d="M0,0 q8,-11 16,0 t16,0 t16,0 t16,0" fill="none" stroke="var(--photon)" stroke-width="3.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- region labels under the device -->
+  <g id="lbTC" class="fade">
+    <line x1="331" y1="502" x2="331" y2="542" stroke="var(--muted)" stroke-width="1.2"/>
+    <text class="lbl" x="331" y="560" text-anchor="middle">transparent contact</text>
+  </g>
+  <g id="lbAR" class="fade">
+    <line x1="309" y1="502" x2="205" y2="584" stroke="var(--muted)" stroke-width="1.2"/>
+    <text class="lbl" x="205" y="602" text-anchor="middle">antireflection coating</text>
+  </g>
+  <g id="lbDR" class="fade">
+    <line x1="704" y1="502" x2="704" y2="542" stroke="var(--muted)" stroke-width="1.2"/>
+    <text class="lbl" x="704" y="560" text-anchor="middle">drift region</text>
+  </g>
+  <g id="lbCT" class="fade">
+    <line x1="767" y1="502" x2="788" y2="572" stroke="var(--muted)" stroke-width="1.2"/>
+    <text class="lbl" x="788" y="590" text-anchor="middle">contact region</text>
+  </g>
+
+  <!-- build legend (right column, build steps only) -->
+  <g id="bom" class="fade">
+    <rect x="872" y="100" width="400" height="234" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="rlab" x="1072" y="132" text-anchor="middle">the build</text>
+    <text id="b1" class="bom fade" x="888" y="168">1 &#183; contact region &#183; grounded back contact</text>
+    <text id="b2" class="bom fade" x="888" y="198">2 &#183; drift region &#183; thin buffer layer</text>
+    <text id="b3" class="bom fade" x="888" y="228">3 &#183; gain region &#183; silicon doped with arsenic</text>
+    <text id="b4" class="bom fade" x="888" y="258">4 &#183; intrinsic silicon &#183; absorbs the photon</text>
+    <text id="b5" class="bom fade" x="888" y="288">5 &#183; window &#183; transparent contact + coating</text>
+    <text id="b6" class="bom fade" x="888" y="318">6 &#183; cooled to 7 K &#183; biased at 7 V</text>
+  </g>
+
+  <!-- final takeaways (last step) -->
+  <g id="stats" class="fade">
+    <text class="term" x="1060" y="399" text-anchor="middle">detection efficiency up to 88% at 694 nm</text>
+    <text class="term" x="1060" y="429" text-anchor="middle">resolves the photon number up to about six</text>
+  </g>
+
+  <!-- scope panel -->
+  <g id="scope" class="fade">
+    <rect x="892" y="468" width="360" height="224" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="rlab" x="1072" y="496" text-anchor="middle" font-size="17">output pulse</text>
+    <line x1="918" y1="660" x2="1228" y2="660" stroke="var(--muted)" stroke-width="1.4"/>
+    <line x1="918" y1="660" x2="918" y2="508" stroke="var(--muted)" stroke-width="1.4"/>
+    <text class="small" x="946" y="524" font-size="15">charge</text>
+    <text class="small" x="1192" y="678" font-size="15">time</text>
+    <g id="pnrRefs" class="fade"></g>
+    <path id="trace" fill="none" stroke="var(--signal)" stroke-width="2.6"/>
+  </g>
+</svg>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+
+  /* ---------- deterministic RNG ---------- */
+  var seed = 987654321;
+  function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+  function reseed() { seed = 987654321; }
+
+  /* ---------- geometry ---------- */
+  var GAIN_L = 494, GAIN_R = 684, TC_X = 346, HOLE_END = 726;
+  var COLS = [512, 546, 580, 614, 648];
+  var ROWS = [372, 404, 436, 468];          // rows 0,1 = stripe A; rows 2,3 = stripe B
+  function stripeOf(y) { return y < 424 ? 0 : 1; }
+
+  /* ---------- steps ---------- */
+  var STEPS = [
+    { cap: "1. Start with the contact region.",
+      cap2: "A doped-silicon block; the grounded back contact of the device." },
+    { cap: "2. Add the drift region.",
+      cap2: "A thin silicon layer between the gain region and the contact." },
+    { cap: "3. Add the gain region: silicon doped with arsenic.",
+      cap2: "Each arsenic donor holds one loosely bound electron, 54 meV below the conduction band." },
+    { cap: "4. Add the intrinsic silicon layer.",
+      cap2: "Undoped silicon; incoming photons are absorbed here." },
+    { cap: "5. Close the device: transparent contact and antireflection coating.",
+      cap2: "Light enters through both; the rest of the circuit attaches here." },
+    { cap: "6. Cool to 7 K and apply 7 volts.",
+      cap2: "The bias sets up an electric field across every layer." },
+    { cap: "7. A photon is absorbed in the intrinsic layer.",
+      cap2: "The absorption creates one electron-hole pair." },
+    { cap: "8. The field separates the pair.",
+      cap2: "The electron drifts to the transparent contact; the hole drifts into the gain region." },
+    { cap: "9. The hole ionizes an arsenic donor.",
+      cap2: "The collision lifts the donor electron into the conduction band." },
+    { cap: "10. Freed electrons ionize more donors: avalanche.",
+      cap2: "Only electrons multiply; the holes left on the donors hop far too slowly to ionize." },
+    { cap: "11. The avalanche stays inside a few-micrometre column.",
+      cap2: "Only this column has a dead time; the rest of the detector stays ready." },
+    { cap: "12. Two photons give twice the pulse height.",
+      cap2: "The output is the sum of the local pulses; this resolves the photon number up to about six." }
+  ];
+  var N = STEPS.length;
+  var DUR = [4200, 4200, 5400, 4200, 4800, 5200, 5600, 5800, 6400, 7200, 7200, 9500];
+  var s = 0, playing = true, timer = null, frozen = false;
+
+  /* ---------- step 12: photon-number-resolution demo ---------- */
+  var photonN = 2;          // how many simultaneous photons the user has selected
+  var PNR_UNIT = 0.15;      // scope height per photon (6 photons -> 0.9, fits the panel)
+  var SPOTS = [              // landing points for up to 6 simultaneous photons
+    { x: 430, y: 372, stripe: 0 },
+    { x: 446, y: 468, stripe: 1 },
+    { x: 414, y: 404, stripe: 0 },
+    { x: 462, y: 436, stripe: 1 },
+    { x: 398, y: 372, stripe: 0 },
+    { x: 478, y: 468, stripe: 1 }
+  ];
+  var NUMW = ['one', 'two', 'three', 'four', 'five', 'six'];
+  function pulseCaption(n) {
+    var subj = NUMW[n - 1] + ' photon' + (n === 1 ? '' : 's');
+    subj = subj.charAt(0).toUpperCase() + subj.slice(1);
+    var verb = n === 1 ? 'arrives' : 'arrive';
+    return '12. ' + subj + ' ' + verb + ' in the same pulse.';
+  }
+
+  /* ---------- donors ---------- */
+  var donorsG = $('donorsG'), donors = [];
+  function buildDonors() {
+    donorsG.innerHTML = ''; donors = [];
+    for (var r = 0; r < ROWS.length; r++) for (var c = 0; c < COLS.length; c++) {
+      var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      var o = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      o.setAttribute('cx', COLS[c]); o.setAttribute('cy', ROWS[r]); o.setAttribute('r', 5.5);
+      o.setAttribute('fill', 'none'); o.setAttribute('stroke', 'var(--donor)'); o.setAttribute('stroke-width', 1.6);
+      var e = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      e.setAttribute('cx', COLS[c] + 7); e.setAttribute('cy', ROWS[r] - 6); e.setAttribute('r', 3.2);
+      e.setAttribute('fill', 'var(--elec)');
+      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', COLS[c]); t.setAttribute('y', ROWS[r] + 4.5);
+      t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', '12');
+      t.setAttribute('font-weight', '700'); t.setAttribute('fill', 'var(--hole)');
+      t.textContent = '+'; t.setAttribute('opacity', 0);
+      g.appendChild(o); g.appendChild(e); g.appendChild(t); donorsG.appendChild(g);
+      donors.push({ x: COLS[c], y: ROWS[r], stripe: r < 2 ? 0 : 1, ionized: false, elDot: e, plus: t, ring: o });
+    }
+  }
+  function ionizeDonor(d) {
+    d.ionized = true;
+    d.elDot.setAttribute('opacity', 0);
+    d.plus.setAttribute('opacity', 1);
+    d.ring.setAttribute('stroke', 'var(--hole)');
+    spawnElectron(d.x, d.y, d.stripe);
+    flash(d.x, d.y, 'ion');
+  }
+  function resetDonors() {
+    donors.forEach(function (d) {
+      d.ionized = false;
+      d.elDot.setAttribute('opacity', 1);
+      d.plus.setAttribute('opacity', 0);
+      d.ring.setAttribute('stroke', 'var(--donor)');
+    });
+  }
+
+  /* ---------- particles ---------- */
+  var partsG = $('partsG'), flashG = $('flashG');
+  var electrons = [], holes = [], flashes = [];
+  function spawnElectron(x, y, stripe) {
+    if (countE(stripe) >= 13) return;
+    electrons.push({ x: x, y: y, vx: -0.4, ph: rnd() * 6.28, ions: 0, stripe: stripe });
+  }
+  function countE(stripe) {
+    var n = 0; electrons.forEach(function (p) { if (p.stripe === stripe) n++; }); return n;
+  }
+  function spawnHole(x, y, stripe, maxIon) {
+    holes.push({ x: x, y: y, vx: 0.25, cool: 0, ions: 0, maxIon: maxIon, stripe: stripe, park: false });
+  }
+  function flash(x, y, kind) { flashes.push({ x: x, y: y, age: 0, kind: kind }); }
+  function clearParts() { electrons = []; holes = []; flashes = []; }
+
+  /* ---------- scope ---------- */
+  var NS = 200, scopeArr = [], lvl = 0, bump = 0;
+  var pnrTarget = null;   // step 12 only: overrides the live electron-count target with N * PNR_UNIT
+  for (var i0 = 0; i0 < NS; i0++) scopeArr.push(0);
+  var traceP = $('trace');
+  function scopeSample() {
+    var target = (pnrTarget !== null) ? pnrTarget : Math.min(1, 0.045 * electrons.length + bump);
+    lvl += (target - lvl) * 0.16;
+    bump *= 0.94;
+    scopeArr.push(lvl); scopeArr.shift();
+  }
+  function drawScope() {
+    var d = '', L = 918, R = 1228, step = (R - L) / NS;
+    for (var i = 0; i < NS; i++)
+      d += (i ? 'L' : 'M') + (L + i * step).toFixed(1) + ' ' + (660 - scopeArr[i] * 150).toFixed(1) + ' ';
+    traceP.setAttribute('d', d);
+  }
+  function clearScope() { for (var i = 0; i < NS; i++) scopeArr[i] = 0; lvl = 0; bump = 0; }
+
+  /* ---------- physics ---------- */
+  var BH = { sep: false, chain: false };
+  function physics() {
+    var i, p;
+    for (i = holes.length - 1; i >= 0; i--) {
+      p = holes[i];
+      if (!BH.sep || p.park) continue;
+      p.vx = Math.min(p.vx + 0.02, 1.1);
+      p.x += p.vx;
+      if (p.maxIon === 0 && p.x > GAIN_L + 10) { p.park = true; p.x = GAIN_L + 10; }
+      if (p.cool > 0) p.cool--;
+      if (p.x >= GAIN_L && p.x <= GAIN_R && p.cool === 0 && p.ions < p.maxIon) {
+        for (var k = 0; k < donors.length; k++) {
+          var d = donors[k];
+          if (!d.ionized && d.stripe === p.stripe && Math.abs(d.y - p.y) <= 12 && Math.abs(d.x - p.x) < 8) {
+            ionizeDonor(d); p.ions++; p.cool = 22;
+            if (p.ions >= p.maxIon && p.maxIon <= 1) p.park = true;
+            break;
+          }
+        }
+      }
+      if (p.x > HOLE_END) holes.splice(i, 1);
+    }
+    for (i = electrons.length - 1; i >= 0; i--) {
+      p = electrons[i];
+      if (!BH.sep) continue;
+      p.vx = Math.max(p.vx - 0.14, -3.4);
+      p.x += p.vx;
+      p.ph += 0.18; p.y += Math.sin(p.ph) * 0.55;
+      if (BH.chain && p.x >= GAIN_L && p.x <= GAIN_R && p.ions < 2) {
+        for (var k2 = 0; k2 < donors.length; k2++) {
+          var d2 = donors[k2];
+          if (!d2.ionized && d2.stripe === p.stripe && Math.abs(d2.y - p.y) <= 38 && Math.abs(d2.x - p.x) < 9) {
+            ionizeDonor(d2); p.ions++;
+            break;
+          }
+        }
+      }
+      if (p.x < TC_X) { bump = Math.min(0.3, bump + 0.05); flash(TC_X + 4, p.y, 'col'); electrons.splice(i, 1); }
+    }
+    for (i = flashes.length - 1; i >= 0; i--) { flashes[i].age++; if (flashes[i].age > 16) flashes.splice(i, 1); }
+    scopeSample();
+  }
+
+  /* ---------- drawing ---------- */
+  function draw() {
+    var svgNS = 'http://www.w3.org/2000/svg', i, c;
+    partsG.innerHTML = '';
+    for (i = 0; i < electrons.length; i++) {
+      c = document.createElementNS(svgNS, 'circle');
+      c.setAttribute('cx', electrons[i].x); c.setAttribute('cy', electrons[i].y); c.setAttribute('r', 4.5);
+      c.setAttribute('fill', 'var(--elec)'); c.setAttribute('stroke', 'var(--panel)'); c.setAttribute('stroke-width', 1);
+      partsG.appendChild(c);
+    }
+    for (i = 0; i < holes.length; i++) {
+      c = document.createElementNS(svgNS, 'circle');
+      c.setAttribute('cx', holes[i].x); c.setAttribute('cy', holes[i].y); c.setAttribute('r', 4.5);
+      c.setAttribute('fill', 'var(--hole)'); c.setAttribute('stroke', 'var(--panel)'); c.setAttribute('stroke-width', 1);
+      partsG.appendChild(c);
+    }
+    flashG.innerHTML = '';
+    for (i = 0; i < flashes.length; i++) {
+      var f = flashes[i];
+      c = document.createElementNS(svgNS, 'circle');
+      c.setAttribute('cx', f.x); c.setAttribute('cy', f.y);
+      c.setAttribute('r', 2 + f.age * (f.kind === 'ion' ? 0.9 : 0.55));
+      c.setAttribute('fill', 'none');
+      c.setAttribute('stroke', f.kind === 'ion' ? 'var(--photon)' : 'var(--signal)');
+      c.setAttribute('stroke-width', 2);
+      c.setAttribute('opacity', 1 - f.age / 16);
+      flashG.appendChild(c);
+    }
+    var dead = $('deadA');
+    dead.setAttribute('opacity', deadOn && electrons.length === 0 && holes.length === 0 ? 0.28 : 0);
+    drawScope();
+  }
+
+  /* ---------- photon glyph tweens (pure JS) ---------- */
+  var tweens = [];
+  function tween(el, x0, y0, x1, y1, dur, onDone) {
+    tweens.push({ el: el, x0: x0, y0: y0, x1: x1, y1: y1, t0: performance.now(), dur: dur, onDone: onDone });
+    el.setAttribute('opacity', 1);
+  }
+  function stepTweens(now) {
+    for (var i = tweens.length - 1; i >= 0; i--) {
+      var w = tweens[i], t = Math.min(1, (now - w.t0) / w.dur);
+      var e = t * t;   // easeInQuad
+      w.el.setAttribute('transform', 'translate(' + (w.x0 + (w.x1 - w.x0) * e) + ',' + (w.y0 + (w.y1 - w.y0) * e) + ')');
+      if (t >= 1) { w.el.setAttribute('opacity', 0); var cb = w.onDone; tweens.splice(i, 1); if (cb) cb(); }
+    }
+  }
+
+  /* ---------- cycle scripting ---------- */
+  var timers = [];
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  var deadOn = false;
+
+  function firePhoton(el, absX, absY, cb) {
+    tween(el, 120 - 64, absY, absX - 64, absY, 750, function () {
+      flash(absX, absY, 'ion');
+      if (cb) cb();
+    });
+  }
+
+  function runCycle(op) {
+    reseed(); resetDonors(); clearParts();
+    BH.sep = false; BH.chain = false;
+    if (op === 0) {
+      firePhoton($('ph1'), 430, 404, function () {
+        electrons.push({ x: 427, y: 401, vx: 0, ph: 0, ions: 0, stripe: 0 });
+        spawnHole(433, 404, 0, 0);
+      });
+      later(function () { if (s - 6 === 0) runCycle(0); }, 5200);
+    } else if (op === 1) {
+      firePhoton($('ph1'), 430, 404, function () {
+        electrons.push({ x: 427, y: 401, vx: 0, ph: 0, ions: 0, stripe: 0 });
+        spawnHole(433, 404, 0, 0);
+        later(function () { BH.sep = true; }, 500);
+      });
+      later(function () { if (s - 6 === 1) runCycle(1); }, 6200);
+    } else if (op === 2) {
+      firePhoton($('ph1'), 430, 404, function () {
+        electrons.push({ x: 427, y: 401, vx: 0, ph: 0, ions: 0, stripe: 0 });
+        spawnHole(433, 404, 0, 1);
+        later(function () { BH.sep = true; }, 400);
+      });
+      later(function () { if (s - 6 === 2) runCycle(2); }, 6800);
+    } else if (op === 3 || op === 4) {
+      firePhoton($('ph1'), 430, 404, function () {
+        electrons.push({ x: 427, y: 401, vx: 0, ph: 0, ions: 0, stripe: 0 });
+        spawnHole(433, 404, 0, 99);
+        later(function () { BH.sep = true; BH.chain = true; }, 400);
+      });
+      later(function () { if (s - 6 === op) runCycle(op); }, 7600);
+    } else if (op === 5) {
+      var glyphs = [$('ph1'), $('ph2'), $('ph3'), $('ph4'), $('ph5'), $('ph6')];
+      var count = photonN;
+      pnrTarget = 0;
+      for (var pi = 0; pi < count; pi++) {
+        (function (i) {
+          var spot = SPOTS[i];
+          later(function () {
+            firePhoton(glyphs[i], spot.x, spot.y, function () {
+              electrons.push({ x: spot.x - 3, y: spot.y - 3, vx: 0, ph: i, ions: 0, stripe: spot.stripe });
+              spawnHole(spot.x + 3, spot.y, spot.stripe, 99);
+              later(function () {
+                BH.sep = true; BH.chain = true;
+                pnrTarget = (i + 1) * PNR_UNIT;
+              }, 300);
+            });
+          }, i * 260);
+        })(pi);
+      }
+      var buildTime = (count - 1) * 260 + 750 + 300;
+      later(function () { pnrTarget = null; }, buildTime + 2200);
+      later(function () { if (s - 6 === 5) runCycle(5); }, buildTime + 4800);
+    }
+  }
+
+  /* ---------- frozen (screenshot) state builders ---------- */
+  function synthPulse(arr, at, rise, hold, fall, h) {
+    var i, v;
+    for (i = 0; i < rise; i++) { v = h * (i / rise); if (at + i < NS) arr[at + i] = v; }
+    for (i = 0; i < hold; i++) if (at + rise + i < NS) arr[at + rise + i] = h;
+    for (i = 0; i < fall; i++) { v = h * (1 - i / fall); if (at + rise + hold + i < NS) arr[at + rise + hold + i] = v; }
+  }
+  function frozenState(step) {
+    var op = step - 6;
+    if (op < 0) return;
+    reseed(); resetDonors(); clearParts(); clearScope();
+    if (op === 0) {
+      $('ph1').setAttribute('transform', 'translate(300,404)'); $('ph1').setAttribute('opacity', 1);
+      electrons.push({ x: 427, y: 401, vx: 0, ph: 0, ions: 0, stripe: 0 });
+      spawnHole(433, 404, 0, 0);
+      flash(430, 404, 'ion'); flashes[0].age = 6;
+    } else if (op === 1) {
+      electrons.push({ x: 372, y: 400, vx: -2, ph: 0, ions: 0, stripe: 0 });
+      spawnHole(474, 404, 0, 0);
+    } else if (op === 2) {
+      donors[5].ionized = true; donors[5].elDot.setAttribute('opacity', 0);
+      donors[5].plus.setAttribute('opacity', 1); donors[5].ring.setAttribute('stroke', 'var(--hole)');
+      electrons.push({ x: 470, y: 398, vx: -1.6, ph: 0, ions: 0, stripe: 0 });
+      spawnHole(538, 404, 0, 1); holes[0].park = true; holes[0].ions = 1;
+      flash(512, 404, 'ion'); flashes[0].age = 5;
+    } else if (op === 3 || op === 4) {
+      [5, 6, 7, 8, 0, 1].forEach(function (k) {
+        donors[k].ionized = true; donors[k].elDot.setAttribute('opacity', 0);
+        donors[k].plus.setAttribute('opacity', 1); donors[k].ring.setAttribute('stroke', 'var(--hole)');
+      });
+      spawnHole(636, 404, 0, 99); holes[0].ions = 4;
+      [[368, 400], [402, 396], [438, 406], [472, 380], [500, 386], [548, 402], [560, 388]].forEach(function (q) {
+        electrons.push({ x: q[0], y: q[1], vx: -2.2, ph: rnd() * 6, ions: 1, stripe: 0 });
+      });
+      flash(614, 404, 'ion'); flashes[0].age = 4;
+      flash(546, 372, 'ion'); flashes[1].age = 9;
+      synthPulse(scopeArr, 108, 26, 40, 26, 0.45); lvl = 0.45;
+      BH.sep = true;
+    } else if (op === 5) {
+      donors.forEach(function (d, k) {
+        if (k % 5 < 4) {
+          d.ionized = true; d.elDot.setAttribute('opacity', 0);
+          d.plus.setAttribute('opacity', 1); d.ring.setAttribute('stroke', 'var(--hole)');
+        }
+      });
+      spawnHole(664, 404, 0, 99); spawnHole(664, 468, 1, 99);
+      [[366, 398], [398, 404], [434, 372], [468, 380], [504, 406], [540, 370], [576, 398],
+       [382, 466], [420, 440], [458, 470], [494, 438], [532, 464], [570, 442]].forEach(function (q, ix) {
+        electrons.push({ x: q[0], y: q[1], vx: -2.2, ph: ix, ions: 1, stripe: q[1] < 424 ? 0 : 1 });
+      });
+      flash(614, 468, 'ion'); flashes[0].age = 5;
+      synthPulse(scopeArr, 30, 14, 22, 18, 0.45);
+      synthPulse(scopeArr, 128, 22, 50, 0, 0.9); lvl = 0.9;
+      BH.sep = true;
+    }
+  }
+
+  /* ---------- declarative render ---------- */
+  function on(id, v) { var el = $(id); if (el) el.classList.toggle('on', !!v); }
+  var chipsBox = $('chips'), chips = [];
+  STEPS.forEach(function (_, k) {
+    var b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.textContent = k + 1;
+    b.addEventListener('click', function () { stop(); go(k); });
+    chipsBox.appendChild(b); chips.push(b);
+  });
+
+  /* ---------- photon-count selector (step 12) ---------- */
+  var photonBtnPos = [[51, 240], [125, 240], [199, 240], [51, 300], [125, 300], [199, 300]];
+  var photonBox = $('photonBtns'), photonChips = [];
+  photonBtnPos.forEach(function (pos, i) {
+    var pn = i + 1;
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.style.cursor = 'pointer';
+    var r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', pos[0]); r.setAttribute('y', pos[1]);
+    r.setAttribute('width', 66); r.setAttribute('height', 48); r.setAttribute('rx', 8);
+    r.setAttribute('fill', 'var(--bg)'); r.setAttribute('stroke', 'var(--line)'); r.setAttribute('stroke-width', 1.5);
+    var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', pos[0] + 33); t.setAttribute('y', pos[1] + 31);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', '22'); t.setAttribute('font-weight', '700');
+    t.setAttribute('fill', 'var(--ink)');
+    t.textContent = pn;
+    g.appendChild(r); g.appendChild(t);
+    g.addEventListener('click', function () { selectPhotonN(pn); });
+    photonBox.appendChild(g);
+    photonChips.push({ rect: r, text: t });
+  });
+  function refreshPhotonChips() {
+    photonChips.forEach(function (c, i) {
+      var active = (i + 1 === photonN);
+      c.rect.setAttribute('stroke', active ? 'var(--photon)' : 'var(--line)');
+      c.rect.setAttribute('stroke-width', active ? 2.4 : 1.5);
+      c.text.setAttribute('fill', active ? 'var(--photon)' : 'var(--ink)');
+    });
+  }
+  function selectPhotonN(n) {
+    photonN = n;
+    refreshPhotonChips();
+    if (s === 11) {
+      clearTimers(); tweens = [];
+      ['ph1', 'ph2', 'ph3', 'ph4', 'ph5', 'ph6'].forEach(function (id) { $(id).setAttribute('opacity', 0); });
+      clearParts(); resetDonors(); clearScope(); pnrTarget = null;
+      $('cap').textContent = pulseCaption(photonN);
+      runCycle(5);
+    }
+  }
+  refreshPhotonChips();
+
+  /* ---------- scope reference gridlines: one dashed line per photon-number level ---------- */
+  var pnrRefsBox = $('pnrRefs');
+  for (var lvN = 1; lvN <= 6; lvN++) {
+    var yN = 660 - lvN * PNR_UNIT * 150;
+    var ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('x1', 918); ln.setAttribute('y1', yN); ln.setAttribute('x2', 1228); ln.setAttribute('y2', yN);
+    ln.setAttribute('stroke', 'var(--signal)'); ln.setAttribute('stroke-width', 1.2);
+    ln.setAttribute('stroke-dasharray', '5 5'); ln.setAttribute('opacity', 0.7);
+    pnrRefsBox.appendChild(ln);
+    var lt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lt.setAttribute('x', 1224); lt.setAttribute('y', yN - 4);
+    lt.setAttribute('text-anchor', 'end'); lt.setAttribute('font-size', 13); lt.setAttribute('fill', 'var(--signal)');
+    lt.setAttribute('class', 'small');
+    lt.textContent = lvN;
+    pnrRefsBox.appendChild(lt);
+  }
+
+  function render(step) {
+    $('cap').textContent = step === 11 ? pulseCaption(photonN) : STEPS[step].cap;
+    $('cap2').textContent = STEPS[step].cap2;
+    on('L1', step >= 0); on('L2', step >= 1); on('L3', step >= 2);
+    on('L4', step >= 3); on('L5', step >= 4); on('L6', step >= 4);
+    on('lbCT', step >= 0); on('lbDR', step >= 1);
+    on('lbTC', step >= 4); on('lbAR', step >= 4);
+    on('callout', step === 2);
+    on('photonSel', step === 11);
+    on('badgeT', step >= 5); on('circuit', step >= 5);
+    on('bom', step <= 5);
+    on('b1', step >= 0 && step <= 5); on('b2', step >= 1 && step <= 5);
+    on('b3', step >= 2 && step <= 5); on('b4', step >= 3 && step <= 5);
+    on('b5', step >= 4 && step <= 5); on('b6', step >= 5 && step <= 5);
+    on('scope', step >= 5);
+    on('colA', step >= 10); on('colB', step === 11);
+    on('pnrRefs', step === 11); on('stats', step === 11);
+    donorsG.setAttribute('opacity', step >= 2 ? 1 : 0);
+    deadOn = (step === 10);
+    chips.forEach(function (c, k) { c.classList.toggle('active', k === step); });
+    if (step === 11) refreshPhotonChips();
+    try { parent.postMessage({ animState: { step: step + 1, total: N } }, '*'); } catch (err) {}
+  }
+
+  function setStep(n, instant) {
+    s = Math.max(0, Math.min(N - 1, n));
+    clearTimers(); tweens = [];
+    ['ph1', 'ph2', 'ph3', 'ph4', 'ph5', 'ph6'].forEach(function (id) { $(id).setAttribute('opacity', 0); });
+    clearParts(); resetDonors();
+    pnrTarget = null;
+    if (s < 6) clearScope();
+    if (frozen || instant) {
+      /* instant park: no entry motion, no CSS fade; the rAF loop keeps running (unless shot mode) */
+      var root = document.documentElement;
+      root.classList.add('frozen');
+      BH.sep = false; BH.chain = false;
+      render(s);
+      frozenState(s);
+      draw();
+      if (!frozen) { void root.offsetHeight; root.classList.remove('frozen'); }
+      return;
+    }
+    render(s);
+    if (s >= 6) runCycle(s - 6);
+    draw();
+  }
+
+  /* ---------- navigation / autoplay ---------- */
+  function go(n) { setStep(n); }
+  function next() { if (s < N - 1) go(s + 1); else stop(); }
+  function stopTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+  function auto() {
+    stopTimer();
+    timer = setTimeout(function () {
+      if (playing) { if (s < N - 1) { next(); auto(); } else stop(); }
+    }, DUR[s]);
+  }
+  function play() { playing = true; $('playall').innerHTML = '&#9208;&ensp;Pause'; if (s >= N - 1) go(0); auto(); }
+  function stop() { playing = false; $('playall').innerHTML = '&#9654;&ensp;Play all'; stopTimer(); }
+
+  $('next').addEventListener('click', function () { stop(); next(); });
+  $('prev').addEventListener('click', function () { stop(); go(s - 1); });
+  $('playall').addEventListener('click', function () { if (playing) { stop(); } else { go(0); play(); } });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') { stop(); next(); }
+    if (e.key === 'ArrowLeft') { stop(); go(s - 1); }
+  });
+
+  /* ---------- main loop ---------- */
+  function frame(now) {
+    stepTweens(now || performance.now());
+    physics();
+    draw();
+    if (!frozen) requestAnimationFrame(frame);
+  }
+
+  /* ---------- boot ---------- */
+  buildDonors();
+  var shotM = location.search.match(/[?&]shot=(\d+)/);
+  var h = parseInt((location.hash || '').slice(1), 10);
+  if (shotM) {
+    frozen = true;
+    document.documentElement.classList.add('frozen');
+    setStep(parseInt(shotM[1], 10) - 1, true);
+  } else if (isFinite(h)) {
+    stop(); go(h); requestAnimationFrame(frame);
+  } else {
+    stop(); setStep(0, true); requestAnimationFrame(frame);
+  }
+
+  /* ---------- deck-step API (driven by the parent deck via postMessage) ---------- */
+  window.__animStep = {
+    next: function () { stop(); next(); },
+    prev: function () { stop(); go(s - 1); },
+    goto: function (k) { stop(); setStep(k - 1, true); }
+  };
+})();
+</script>
+
+<script>
+(function () {
+  var d = document.documentElement;
+  function apply(t) { d.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light'); }
+  var m = (location.search.match(/[?&]theme=(dark|light)/) || [])[1];
+  apply(m || 'light');
+  addEventListener('message', function (e) {
+    if (e && e.data && (e.data.theme === 'dark' || e.data.theme === 'light')) apply(e.data.theme);
+  });
+  addEventListener('message', function (e) {
+    var msg = e && e.data;
+    if (!msg || !msg.anim || !window.__animStep) return;
+    if (msg.anim === 'next') window.__animStep.next();
+    else if (msg.anim === 'prev') window.__animStep.prev();
+    else if (msg.anim === 'goto') {
+      var k = Math.round(Number(msg.step));
+      if (isFinite(k)) window.__animStep.goto(k);
+    }
+  });
+})();
+</script>
+</body>
+</html>

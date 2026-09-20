@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPAD</title>
+<style>
+  :root {
+    --bg: #e9e6df;
+    --panel: #f4f2ec;
+    --ink: #23272e;
+    --muted: #5d6570;
+    --line: #c6c0b2;
+    --elec: #2d5fb8;      /* electron blue */
+    --hole: #c0392b;      /* hole red */
+    --photon: #b7791f;    /* amber */
+    --term: #0f766e;      /* teal terms */
+    --signal: #15803d;    /* green output */
+    --hot: #c02626;
+    --field: #6d28d9;
+    --edge: #5a5346;
+  }
+  :root[data-theme="dark"] {
+    --bg: #171b20; --panel: #262b31; --ink: #ebe7dd; --muted: #a1abb5; --line: #3b414a;
+    --elec: #6ea3f2; --hole: #f0736a; --photon: #e3a94e; --term: #37c6b8;
+    --signal: #51c77d; --hot: #f06b6b; --field: #ab8ffb;
+  }
+  html, body { transition: background-color .3s ease; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 10px 12px 12px;
+  }
+  .bar { width: min(1240px, 97vw); display: flex; align-items: center; gap: 12px; padding: 4px 6px 8px; }
+  .bar h1 { font-size: 23px; font-weight: 700; letter-spacing: -0.01em; }
+  .bar .spacer { margin-left: auto; }
+  .bar button {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 15px; font-size: 15px; cursor: pointer;
+  }
+  .bar button:hover { border-color: var(--photon); }
+  .bar button:focus-visible { outline: 2px solid var(--photon); outline-offset: 2px; }
+  .controls button { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .controls .chip { min-width: 34px; padding: 7px 0; text-align: center; font-size: 14px; }
+  .controls .chip.active { border-color: var(--photon); color: var(--photon); font-weight: 700; }
+
+  svg { width: min(1240px, 97vw); height: auto; max-height: calc(100vh - 110px); display: block; }
+
+  .cap   { font-size: 24px; font-weight: 700; fill: var(--ink); }
+  .cap2  { font-size: 15.5px; fill: var(--muted); }
+  .face  { font-size: 18px; font-weight: 700; }
+  .small { font-size: 13.5px; fill: var(--muted); }
+  .lbl   { font-size: 15.5px; fill: var(--muted); }
+  .term  { font-size: 14.5px; font-weight: 600; fill: var(--term); }
+  .sign  { font-size: 12px; font-weight: 700; fill: #fff; }
+  .fsign { font-size: 12px; font-weight: 700; }
+  .volt  { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+           font-size: 14.5px; font-weight: 600; fill: var(--field); }
+  .axl   { font-size: 13.5px; fill: var(--muted); }
+
+  .fade { opacity: 0; transition: opacity .5s ease; }
+  .fade.on { opacity: 1; }
+
+  /* p and n blocks slide in from the sides and meet to form one bar */
+  #Pblock { transform: translateX(-120px); transition: transform .75s cubic-bezier(.4,.05,.35,1); }
+  #Nblock { transform: translateX(120px);  transition: transform .75s cubic-bezier(.4,.05,.35,1); }
+  #Pblock.join, #Nblock.join { transform: translateX(0); }
+
+  /* under reverse bias only the junction-edge carriers are swept to the contacts;
+     the quasi-neutral bulk stays full of majority carriers up to the depletion edge */
+  #sweptHoles     { transition: transform .9s ease, opacity .7s ease; }
+  #sweptElectrons { transition: transform .9s ease, opacity .7s ease; }
+  #sweptHoles.swept     { transform: translateX(-44px); opacity: 0; }
+  #sweptElectrons.swept { transform: translateX(44px);  opacity: 0; }
+
+  /* depletion boundaries widen under reverse bias */
+  #deplL, #deplR, #ionsWide { transition: transform .9s ease, opacity .5s ease; }
+  #deplL.wide { transform: translateX(-28px); }
+  #deplR.wide { transform: translateX(28px); }
+
+  #photon { transition: opacity .4s ease, transform 1.0s ease; }
+
+  /* avalanche: carriers multiply and stream out to the contacts = current */
+  @keyframes flowR { 0%{opacity:0; transform:translateX(0)}   9%{opacity:1} 85%{opacity:1} 100%{opacity:0; transform:translateX(168px)} }
+  @keyframes flowL { 0%{opacity:0; transform:translateX(0)}   9%{opacity:1} 85%{opacity:1} 100%{opacity:0; transform:translateX(-172px)} }
+  #flow circle { opacity: 0; }
+  #flow.on .eR { animation: flowR 1.15s linear infinite; }
+  #flow.on .hL { animation: flowL 1.15s linear infinite; }
+  @keyframes pop { 0%{opacity:0; transform:scale(.2)} 60%{opacity:1; transform:scale(1.25)} 100%{opacity:1; transform:scale(1)} }
+  #flow.on .seed { animation: pop .5s ease forwards; transform-box: fill-box; transform-origin: center; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Single-photon avalanche diode (SPAD) — build and operation</h1>
+  <span class="spacer"></span>
+  <button id="replay" type="button">Replay</button>
+</div>
+<div class="bar controls" role="group" aria-label="step controls">
+  <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+  <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+  <button id="next" type="button" aria-label="next step">&#9654;</button>
+  <span id="chips" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+</div>
+
+<svg viewBox="0 0 1280 730" role="img" aria-label="Single-photon avalanche diode, built from a p-n junction then operated in Geiger mode">
+
+  <text id="cap"  class="cap"  x="600" y="38" text-anchor="middle"></text>
+  <text id="cap2" class="cap2" x="600" y="66" text-anchor="middle"></text>
+
+  <!-- ============ bias circuit (top) ============ -->
+  <g id="circuit" class="fade">
+    <path d="M 400,322 L 400,150 L 426,150" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <line x1="430" y1="136" x2="430" y2="164" stroke="var(--field)" stroke-width="2.8"/>
+    <line x1="446" y1="126" x2="446" y2="174" stroke="var(--field)" stroke-width="5"/>
+    <text class="fsign" x="416" y="130" fill="var(--field)">&#8722;</text>
+    <text class="fsign" x="456" y="130" fill="var(--field)">+</text>
+    <path d="M 446,150 L 486,150" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <circle cx="504" cy="150" r="16" fill="var(--panel)" stroke="var(--field)" stroke-width="2.2"/>
+    <text class="volt" x="504" y="156" text-anchor="middle" fill="var(--field)">I</text>
+    <path d="M 520,150 L 548,150" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <path d="M 548,150 l 8,-9 l 12,18 l 12,-18 l 12,18 l 12,-18 l 8,9" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <text class="volt" x="580" y="128" text-anchor="middle" fill="var(--field)">R<tspan baseline-shift="sub" font-size="10">q</tspan></text>
+    <path d="M 612,150 L 630,150 L 630,322" fill="none" stroke="var(--field)" stroke-width="2.4"/>
+    <text class="volt" x="438" y="196" text-anchor="middle" fill="var(--field)">bias V</text>
+  </g>
+  <g id="padP" class="fade">
+    <rect x="384" y="316" width="32" height="12" rx="2" fill="#8a8378" stroke="var(--edge)" stroke-width="1"/>
+    <text class="term" x="400" y="306" text-anchor="middle" fill="var(--field)">&#8722; anode (p)</text>
+  </g>
+  <g id="padN" class="fade">
+    <rect x="614" y="316" width="32" height="12" rx="2" fill="#8a8378" stroke="var(--edge)" stroke-width="1"/>
+    <text class="term" x="630" y="306" text-anchor="middle" fill="var(--field)">+ cathode (n)</text>
+  </g>
+
+  <!-- ============ the p-n bar ============ -->
+  <!-- P block (front + top + right); its right face is covered by N once they meet -->
+  <g id="Pblock">
+    <polygon points="510,350 510,500 556,474 556,324" fill="#c9ad86" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,350 510,350 556,324 346,324" fill="#ecd6bf" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="300,350 510,350 510,500 300,500" fill="#dcc3a6" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <text class="face" x="378" y="345" text-anchor="middle" fill="#7a3b2c" stroke="#ecd6bf" stroke-width="3.5" paint-order="stroke">p-type</text>
+    <g id="pHoles">
+      <g fill="var(--hole)">
+        <circle cx="330" cy="380" r="9"/><circle cx="372" cy="380" r="9"/><circle cx="414" cy="380" r="9"/>
+        <circle cx="348" cy="422" r="9"/><circle cx="390" cy="422" r="9"/><circle cx="432" cy="424" r="9"/>
+        <circle cx="332" cy="464" r="9"/><circle cx="386" cy="464" r="9"/><circle cx="440" cy="464" r="9"/>
+      </g>
+      <g class="sign" text-anchor="middle">
+        <text x="330" y="384">+</text><text x="372" y="384">+</text><text x="414" y="384">+</text>
+        <text x="348" y="426">+</text><text x="390" y="426">+</text><text x="432" y="428">+</text>
+        <text x="332" y="468">+</text><text x="386" y="468">+</text><text x="440" y="468">+</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- N block (front + top + right) -->
+  <g id="Nblock">
+    <polygon points="720,350 720,500 766,474 766,324" fill="#8fabc0" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="510,350 720,350 766,324 556,324" fill="#cbdce8" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <polygon points="510,350 720,350 720,500 510,500" fill="#b3c9d8" stroke="var(--edge)" stroke-width="1.2" stroke-linejoin="round"/>
+    <text class="face" x="648" y="345" text-anchor="middle" fill="#274a63" stroke="#cbdce8" stroke-width="3.5" paint-order="stroke">n-type</text>
+    <g id="nElectrons">
+      <g fill="var(--elec)">
+        <circle cx="580" cy="380" r="9"/><circle cx="622" cy="380" r="9"/><circle cx="664" cy="380" r="9"/><circle cx="700" cy="382" r="9"/>
+        <circle cx="588" cy="422" r="9"/><circle cx="630" cy="422" r="9"/><circle cx="672" cy="424" r="9"/><circle cx="706" cy="424" r="9"/>
+        <circle cx="582" cy="464" r="9"/><circle cx="628" cy="464" r="9"/><circle cx="684" cy="464" r="9"/>
+      </g>
+      <g class="sign" text-anchor="middle">
+        <text x="580" y="384">&#8722;</text><text x="622" y="384">&#8722;</text><text x="664" y="384">&#8722;</text><text x="700" y="386">&#8722;</text>
+        <text x="588" y="426">&#8722;</text><text x="630" y="426">&#8722;</text><text x="672" y="428">&#8722;</text><text x="706" y="428">&#8722;</text>
+        <text x="582" y="468">&#8722;</text><text x="628" y="468">&#8722;</text><text x="684" y="468">&#8722;</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- junction-edge carriers that get swept to the contacts as the depletion widens -->
+  <g id="sweptHoles">
+    <g fill="var(--hole)">
+      <circle cx="462" cy="380" r="9"/><circle cx="462" cy="422" r="9"/><circle cx="462" cy="464" r="9"/>
+    </g>
+    <g class="sign" text-anchor="middle">
+      <text x="462" y="384">+</text><text x="462" y="426">+</text><text x="462" y="468">+</text>
+    </g>
+  </g>
+  <g id="sweptElectrons">
+    <g fill="var(--elec)">
+      <circle cx="556" cy="380" r="9"/><circle cx="556" cy="422" r="9"/><circle cx="556" cy="464" r="9"/>
+    </g>
+    <g class="sign" text-anchor="middle">
+      <text x="556" y="384">&#8722;</text><text x="556" y="426">&#8722;</text><text x="556" y="468">&#8722;</text>
+    </g>
+  </g>
+
+  <!-- recombination near the boundary when the junction forms -->
+  <g id="recomb" class="fade">
+    <circle cx="486" cy="404" r="9" fill="var(--hole)"/><text class="sign" x="486" y="408" text-anchor="middle">+</text>
+    <circle cx="534" cy="404" r="9" fill="var(--elec)"/><text class="sign" x="534" y="408" text-anchor="middle">&#8722;</text>
+    <circle cx="490" cy="446" r="9" fill="var(--hole)"/><text class="sign" x="490" y="450" text-anchor="middle">+</text>
+    <circle cx="530" cy="446" r="9" fill="var(--elec)"/><text class="sign" x="530" y="450" text-anchor="middle">&#8722;</text>
+  </g>
+
+  <!-- depletion region: a zone of the same bar, straddling the junction, with only fixed ions -->
+  <g id="depl" class="fade">
+    <line id="deplL" x1="480" y1="350" x2="480" y2="500" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <line id="deplR" x1="540" y1="350" x2="540" y2="500" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <text class="small" x="510" y="520" text-anchor="middle" fill="var(--muted)">depletion region</text>
+  </g>
+
+  <!-- fixed ionized dopant cores exposed in the depletion region (hollow rings = fixed in the lattice) -->
+  <g id="ions" class="fade">
+    <g fill="none" stroke="var(--hole)" stroke-width="2">
+      <circle cx="490" cy="384" r="8.5"/><circle cx="494" cy="426" r="8.5"/><circle cx="488" cy="466" r="8.5"/>
+    </g>
+    <g class="fsign" fill="var(--hole)" text-anchor="middle">
+      <text x="490" y="388">&#8722;</text><text x="494" y="430">&#8722;</text><text x="488" y="470">&#8722;</text>
+    </g>
+    <g fill="none" stroke="var(--elec)" stroke-width="2">
+      <circle cx="530" cy="384" r="8.5"/><circle cx="526" cy="426" r="8.5"/><circle cx="532" cy="466" r="8.5"/>
+    </g>
+    <g class="fsign" fill="var(--elec)" text-anchor="middle">
+      <text x="530" y="388">+</text><text x="526" y="430">+</text><text x="532" y="470">+</text>
+    </g>
+  </g>
+  <!-- extra fixed ions uncovered as the depletion widens under reverse bias -->
+  <g id="ionsWide" class="fade">
+    <g fill="none" stroke="var(--hole)" stroke-width="2">
+      <circle cx="464" cy="404" r="8.5"/><circle cx="468" cy="448" r="8.5"/>
+    </g>
+    <g class="fsign" fill="var(--hole)" text-anchor="middle">
+      <text x="464" y="408">&#8722;</text><text x="468" y="452">&#8722;</text>
+    </g>
+    <g fill="none" stroke="var(--elec)" stroke-width="2">
+      <circle cx="556" cy="404" r="8.5"/><circle cx="552" cy="448" r="8.5"/>
+    </g>
+    <g class="fsign" fill="var(--elec)" text-anchor="middle">
+      <text x="556" y="408">+</text><text x="552" y="452">+</text>
+    </g>
+  </g>
+
+  <!-- incident photon into the depletion region -->
+  <g id="photon" class="fade" transform="translate(510,110)">
+    <path d="M 0,0 q 10,14 0,28 q -10,14 0,28 q 10,14 0,28 q -10,14 0,28 q 10,14 0,28"
+          fill="none" stroke="var(--photon)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -6,132 L 0,146 L 6,132" fill="none" stroke="var(--photon)" stroke-width="3" stroke-linejoin="round"/>
+    <text class="lbl" x="12" y="12" fill="var(--photon)" font-weight="700">photon h&nu;</text>
+  </g>
+
+  <!-- first photo-generated electron-hole pair -->
+  <g id="ehpair" class="fade">
+    <circle cx="500" cy="424" r="9" fill="var(--elec)"/><text class="sign" x="500" y="428" text-anchor="middle">&#8722;</text>
+    <circle cx="522" cy="424" r="9" fill="var(--hole)"/><text class="sign" x="522" y="428" text-anchor="middle">+</text>
+    <text class="lbl" x="511" y="556" text-anchor="middle" fill="var(--term)">one electron-hole pair</text>
+  </g>
+
+  <!-- avalanche: seed pair multiplies, carriers stream to the contacts (electrons right, holes left) -->
+  <g id="flow">
+    <g class="seed"><circle cx="500" cy="424" r="9" fill="var(--elec)"/></g>
+    <g class="seed"><circle cx="522" cy="424" r="9" fill="var(--hole)"/></g>
+    <circle class="eR" cx="524" cy="380" r="8" fill="var(--elec)" style="animation-delay:0s"/>
+    <circle class="eR" cx="524" cy="410" r="8" fill="var(--elec)" style="animation-delay:.22s"/>
+    <circle class="eR" cx="524" cy="440" r="8" fill="var(--elec)" style="animation-delay:.44s"/>
+    <circle class="eR" cx="524" cy="466" r="8" fill="var(--elec)" style="animation-delay:.66s"/>
+    <circle class="eR" cx="524" cy="396" r="8" fill="var(--elec)" style="animation-delay:.88s"/>
+    <circle class="eR" cx="524" cy="454" r="8" fill="var(--elec)" style="animation-delay:.34s"/>
+    <circle class="hL" cx="498" cy="380" r="8" fill="var(--hole)" style="animation-delay:.1s"/>
+    <circle class="hL" cx="498" cy="410" r="8" fill="var(--hole)" style="animation-delay:.32s"/>
+    <circle class="hL" cx="498" cy="440" r="8" fill="var(--hole)" style="animation-delay:.54s"/>
+    <circle class="hL" cx="498" cy="466" r="8" fill="var(--hole)" style="animation-delay:.76s"/>
+    <circle class="hL" cx="498" cy="396" r="8" fill="var(--hole)" style="animation-delay:.98s"/>
+    <circle class="hL" cx="498" cy="454" r="8" fill="var(--hole)" style="animation-delay:.44s"/>
+  </g>
+  <g id="avalTxt" class="fade">
+    <text class="lbl" x="511" y="556" text-anchor="middle" fill="var(--hot)" font-weight="700">carriers multiply and flow to the contacts: current</text>
+  </g>
+
+  <!-- ============ right panel: reverse current-voltage characteristic ============ -->
+  <g id="graph" class="fade">
+    <rect x="892" y="150" width="360" height="298" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="term" x="912" y="176" fill="var(--ink)" font-weight="700">reverse current vs reverse voltage</text>
+    <line x1="928" y1="200" x2="928" y2="420" stroke="var(--muted)" stroke-width="1.8"/>
+    <line x1="928" y1="420" x2="1236" y2="420" stroke="var(--muted)" stroke-width="1.8"/>
+    <text class="axl" x="922" y="206" text-anchor="end">I</text>
+    <text class="axl" x="1012" y="440" text-anchor="middle">reverse voltage</text>
+    <path d="M 928,412 L 1120,410 Q 1132,409 1136,384 L 1140,214"
+          fill="none" stroke="var(--muted)" stroke-width="2.6" stroke-linecap="round"/>
+    <line x1="1128" y1="420" x2="1128" y2="204" stroke="var(--hot)" stroke-width="1.4" stroke-dasharray="5 4"/>
+    <text class="axl" x="1128" y="436" text-anchor="middle" fill="var(--hot)">V<tspan baseline-shift="sub" font-size="10">br</tspan></text>
+    <line x1="1188" y1="420" x2="1188" y2="300" stroke="var(--field)" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <text class="axl" x="1188" y="436" text-anchor="middle" fill="var(--field)">V<tspan baseline-shift="sub" font-size="10">br</tspan>+V<tspan baseline-shift="sub" font-size="10">ex</tspan></text>
+  </g>
+  <circle id="op5" class="fade" cx="1040" cy="411" r="7" fill="var(--signal)"/>
+  <circle id="op6" class="fade" cx="1128" cy="405" r="7" fill="var(--hot)"/>
+  <g id="op7" class="fade">
+    <circle cx="1188" cy="410" r="7.5" fill="var(--field)"/>
+    <text class="term" x="1180" y="392" text-anchor="end" fill="var(--field)" font-weight="700">Geiger point</text>
+  </g>
+  <g id="op9" class="fade">
+    <line x1="1188" y1="404" x2="1188" y2="236" stroke="var(--hot)" stroke-width="1.6" stroke-dasharray="4 4"/>
+    <circle cx="1188" cy="230" r="8" fill="var(--hot)"/>
+    <text class="small" x="1178" y="228" text-anchor="end" fill="var(--hot)" font-weight="700">avalanche current</text>
+  </g>
+  <g id="op10" class="fade">
+    <circle cx="1080" cy="411" r="7" fill="var(--signal)"/>
+    <text class="small" x="1024" y="322" text-anchor="middle" fill="var(--signal)" font-weight="700">quench: V below V<tspan baseline-shift="sub" font-size="9">br</tspan></text>
+  </g>
+
+  <!-- output digital pulse (time domain) -->
+  <g id="scope" class="fade">
+    <rect x="892" y="472" width="360" height="180" rx="10" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+    <text class="term" x="912" y="498" fill="var(--ink)" font-weight="700">output current vs time</text>
+    <line x1="922" y1="620" x2="1236" y2="620" stroke="var(--muted)" stroke-width="1.6"/>
+    <line x1="922" y1="620" x2="922" y2="512" stroke="var(--muted)" stroke-width="1.6"/>
+    <text class="axl" x="1232" y="640" text-anchor="end">time</text>
+  </g>
+  <path id="pulse" class="fade" d="M 922,620 L 1010,620 L 1016,520 L 1060,520 L 1150,610 L 1236,616"
+        fill="none" stroke="var(--signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text id="pulseTxt" class="fade small" x="1150" y="566" text-anchor="middle" fill="var(--signal)" font-weight="700">recharge = dead time</text>
+
+  <!-- legend (bottom-left) -->
+  <g id="legend" class="fade">
+    <circle cx="70" cy="600" r="8" fill="var(--hole)"/><text class="lbl" x="86" y="605">mobile hole (+)</text>
+    <circle cx="70" cy="626" r="8" fill="var(--elec)"/><text class="lbl" x="86" y="631">mobile electron (&#8722;)</text>
+    <circle cx="252" cy="600" r="8" fill="none" stroke="var(--hole)" stroke-width="2"/><text class="lbl" x="268" y="605">fixed acceptor ion (&#8722;)</text>
+    <circle cx="252" cy="626" r="8" fill="none" stroke="var(--elec)" stroke-width="2"/><text class="lbl" x="268" y="631">fixed donor ion (+)</text>
+  </g>
+
+  <!-- takeaway -->
+  <g id="takeaway" class="fade">
+    <text class="term" x="70" y="672" fill="var(--term)" font-weight="700">one photon &#8594; one macroscopic current pulse (binary output, no photon-number resolution)</text>
+  </g>
+
+</svg>
+
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const show = (el, on) => el && el.classList.toggle('on', !!on);
+
+  const STEPS = [
+    { cap: "1. Start with a p-type semiconductor region.",
+      cap2: "Doped with acceptor atoms: each is a fixed negative ion that releases one mobile hole. Holes, the positive carriers, are the majority carriers.",
+      P: true },
+    { cap: "2. Add an n-type semiconductor region.",
+      cap2: "Doped with donor atoms: each is a fixed positive ion that releases one mobile electron. Electrons, the negative carriers, are the majority carriers.",
+      P: true, N: true },
+    { cap: "3. Bring them into contact: the p-n junction.",
+      cap2: "The two regions join into one bar. At the boundary, electrons and holes cross over and recombine, so the free carriers there disappear.",
+      P: true, N: true, join: true, recomb: true },
+    { cap: "4. A depletion region forms at the junction.",
+      cap2: "Inside the bar, near the junction, no mobile carriers are left; only the fixed ions remain, negative on the p side and positive on the n side.",
+      P: true, N: true, join: true, depl: true, ions: true },
+    { cap: "5. Apply reverse bias: plus to the n side, minus to the p side.",
+      cap2: "Only the carriers at the junction edge are swept to the contacts, holes to the minus and electrons to the plus. The bulk stays neutral; the depletion region widens.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op5: true, scope: true },
+    { cap: "6. Raise the reverse voltage to the breakdown voltage.",
+      cap2: "The field grows until, at the breakdown voltage, a carrier gains enough energy to ionize the lattice. This is the knee of the current-voltage curve.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op6: true, scope: true },
+    { cap: "7. Bias above breakdown: the Geiger point.",
+      cap2: "Held at the breakdown voltage plus an excess bias. No mobile carrier is in the depletion region, so no current flows: a metastable operating point.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op7: true, scope: true },
+    { cap: "8. A photon enters the depletion region and is absorbed.",
+      cap2: "If the photon energy h times nu exceeds the band gap, it is absorbed and creates one electron-hole pair in the high-field depletion region.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op7: true, scope: true,
+      photon: true, ehpair: true },
+    { cap: "9. Impact ionization triggers a self-sustaining avalanche.",
+      cap2: "Each carrier frees another bound electron, making a new pair. Above breakdown both carriers keep ionizing and stream to the contacts, so a large current builds up.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op9: true, scope: true,
+      flow: true, avalTxt: true, pulse: true },
+    { cap: "10. A series resistor quenches the avalanche; the device resets.",
+      cap2: "The current through the quench resistor drops the bias below breakdown, stopping the flow. Recharge over the dead time gives one digital pulse out.",
+      P: true, N: true, join: true, depl: true, ions: true, ionsWide: true,
+      circuit: true, pads: true, pull: true, wide: true, graph: true, op10: true,
+      scope: true, pulse: true, pulseTxt: true, legend: true, takeaway: true }
+  ];
+
+  let i = 0, playing = true, timer = null;
+
+  const chipsBox = $('chips');
+  STEPS.forEach((_, k) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.type = 'button'; b.textContent = k + 1;
+    b.addEventListener('click', () => { stop(); go(k); });
+    chipsBox.appendChild(b);
+  });
+  const chips = Array.from(chipsBox.children);
+
+  function render(step) {
+    const s = STEPS[step];
+    $('cap').textContent = s.cap;
+    $('cap2').textContent = s.cap2;
+
+    $('Pblock').style.opacity = s.P ? 1 : 0;
+    $('Nblock').style.opacity = s.N ? 1 : 0;
+    $('Pblock').classList.toggle('join', !!s.join);
+    $('Nblock').classList.toggle('join', !!s.join);
+    $('sweptHoles').style.display = s.depl ? '' : 'none';
+    $('sweptElectrons').style.display = s.depl ? '' : 'none';
+    $('sweptHoles').classList.toggle('swept', !!s.wide);
+    $('sweptElectrons').classList.toggle('swept', !!s.wide);
+    $('deplL').classList.toggle('wide', !!s.wide);
+    $('deplR').classList.toggle('wide', !!s.wide);
+    $('ionsWide').classList.toggle('wide', !!s.wide);
+
+    show($('recomb'), s.recomb);
+    show($('depl'), s.depl); show($('ions'), s.ions); show($('ionsWide'), s.ionsWide);
+    show($('circuit'), s.circuit); show($('padP'), s.pads); show($('padN'), s.pads);
+    show($('graph'), s.graph); show($('scope'), s.scope);
+    show($('op5'), s.op5); show($('op6'), s.op6); show($('op7'), s.op7);
+    show($('op9'), s.op9); show($('op10'), s.op10);
+    show($('photon'), s.photon); show($('ehpair'), s.ehpair);
+    show($('flow'), s.flow); show($('avalTxt'), s.avalTxt);
+    show($('pulse'), s.pulse); show($('pulseTxt'), s.pulseTxt);
+    show($('legend'), s.legend); show($('takeaway'), s.takeaway);
+
+    $('photon').style.transform = s.photon ? 'translate(510px,300px)' : 'translate(510px,110px)';
+
+    chips.forEach((c, k) => c.classList.toggle('active', k === step));
+  }
+
+  function go(n) { i = Math.max(0, Math.min(STEPS.length - 1, n)); render(i); }
+  function next() { if (i < STEPS.length - 1) go(i + 1); else stop(); }
+  function stopTimer() { if (timer) { clearTimeout(timer); timer = null; } }
+  function auto() { stopTimer(); timer = setTimeout(() => { if (playing) { if (i < STEPS.length - 1) { next(); auto(); } else stop(); } }, 3800); }
+  function play() { playing = true; $('play').innerHTML = '&#10074;&#10074;'; if (i >= STEPS.length - 1) go(0); auto(); }
+  function stop() { playing = false; $('play').innerHTML = '&#9654;'; stopTimer(); }
+
+  $('next').addEventListener('click', () => { stop(); next(); });
+  $('prev').addEventListener('click', () => { stop(); go(i - 1); });
+  $('play').addEventListener('click', () => { playing ? stop() : play(); });
+  $('replay').addEventListener('click', () => { go(0); play(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { stop(); next(); }
+    if (e.key === 'ArrowLeft') { stop(); go(i - 1); }
+  });
+
+  const h = parseInt((location.hash || '').slice(1), 10);
+  if (Number.isFinite(h)) { go(h); } else { go(0); play(); }
+})();
+</script>
+<script>
+(function () {
+  var d = document.documentElement;
+  function apply(t) { d.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light'); }
+  var m = (location.search.match(/[?&]theme=(dark|light)/) || [])[1];
+  apply(m || 'light');
+  addEventListener('message', function (e) {
+    if (e && e.data && (e.data.theme === 'dark' || e.data.theme === 'light')) apply(e.data.theme);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From reverse bias to Geiger mode</title>
+<style>
+  :root{
+    --beige:#efe7d8; --card:#faf6ee; --ink:#2b2b2b; --muted:#6b6256;
+    --navy:#1f3a5f; --line:#d8cdb8;
+    --hole:#d1552f; --elec:#2f6fb0; --current:#e6b800; --orange:#d98a3d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--beige); color:var(--ink);
+    font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:8px;
+  }
+  .card{
+    background:var(--card); width:100%; max-width:1240px; max-height:100vh;
+    border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  header{background:var(--navy); color:#f4efe4; padding:9px 18px; display:flex; align-items:baseline; gap:14px}
+  header h1{margin:0; font-size:17px; font-weight:600}
+  header .stage{font-size:13px; opacity:.92; font-weight:600}
+  .body{display:flex; flex:1; min-height:0}
+  .left{flex:1.8; padding:6px 4px 4px 10px; display:flex; align-items:center; justify-content:center}
+  .left svg{width:100%; height:auto; max-height:76vh}
+  .right{flex:1; padding:10px 16px; border-left:1px solid var(--line);
+         display:flex; flex-direction:column; gap:8px; overflow:auto; min-width:310px}
+  .right svg{width:100%; height:auto; flex-shrink:0}
+  .explain{font-size:13.5px; line-height:1.52}
+  .explain .t{font-weight:700; color:var(--navy); display:block; margin-bottom:3px; font-size:14px}
+  footer{border-top:1px solid var(--line); padding:9px 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:#f3ecdd}
+  .grp{display:flex; gap:6px; align-items:center}
+  .sep{width:1px; height:26px; background:var(--line); margin:0 4px}
+  .lab{font-size:12px; color:var(--muted); margin-right:2px}
+  button{
+    font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line); border-radius:8px; padding:7px 11px; color:var(--ink); background:#f1ead9;
+  }
+  button:hover{filter:brightness(.97)} button:active{transform:translateY(1px)}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  #nextBtn{background:var(--navy); color:#f4efe4; border-color:var(--navy)}
+  #photonBtn{background:var(--orange); color:#2b2b2b; border-color:#c37b2f}
+  .vbtn{font-size:16px; min-width:38px}
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <h1>From reverse bias to Geiger mode</h1>
+    <span class="stage" id="stageTitle"></span>
+  </header>
+
+  <div class="body">
+    <div class="left">
+      <svg id="device" viewBox="0 0 560 470" role="img" aria-label="pn junction device and circuit">
+        <defs>
+          <linearGradient id="pGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f8e6da"/><stop offset="1" stop-color="#efceba"/>
+          </linearGradient>
+          <linearGradient id="nGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#e8f0f8"/><stop offset="1" stop-color="#cfe0ef"/>
+          </linearGradient>
+          <linearGradient id="deplGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#c9c3b4"/><stop offset="0.5" stop-color="#d9d3c4"/><stop offset="1" stop-color="#c9c3b4"/>
+          </linearGradient>
+          <marker id="fa" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto">
+            <polygon points="0,0 7,3.5 0,7" fill="#6f4aa6"/>
+          </marker>
+        </defs>
+
+        <!-- external circuit: leads down to the bottom rail; series resistor on the right leg -->
+        <path id="wire" d="M124 236 V408 H436 V344 l8 -6 -16 -7 16 -7 -16 -7 8 -6 V236" fill="none" stroke="#8b8578" stroke-width="4"/>
+        <text x="454" y="322" font-size="11.5" fill="#6b6256">resistor</text>
+        <g id="wireDots"></g>
+        <g id="blipDots"></g>
+
+        <!-- ammeter -->
+        <circle cx="196" cy="408" r="16" fill="#faf6ee" stroke="#5c6470" stroke-width="2"/>
+        <text x="196" y="413" font-size="14" text-anchor="middle" font-weight="700" fill="#5c6470">A</text>
+        <text id="ammReading" x="196" y="440" font-size="12" text-anchor="middle" fill="#6b6256">current: none</text>
+
+        <!-- voltage source at the bottom -->
+        <line x1="300" y1="392" x2="300" y2="424" stroke="#2b2b2b" stroke-width="3.5"/>
+        <line x1="316" y1="399" x2="316" y2="417" stroke="#2b2b2b" stroke-width="2"/>
+        <text x="345" y="404" font-size="11.5" fill="#6b6256">reverse</text>
+        <text x="345" y="418" font-size="11.5" fill="#6b6256">voltage</text>
+
+        <!-- device body -->
+        <rect x="130" y="96" width="150" height="140" fill="url(#pGrad)"/>
+        <rect x="280" y="96" width="150" height="140" fill="url(#nGrad)"/>
+        <rect id="depl" x="255" y="96" width="50" height="140" fill="url(#deplGrad)" fill-opacity="0.8"/>
+        <rect x="116" y="96" width="14" height="140" rx="2" fill="#4a4a4a"/>
+        <rect x="430" y="96" width="14" height="140" rx="2" fill="#4a4a4a"/>
+        <rect x="116" y="96" width="328" height="140" rx="4" fill="none" stroke="#b7ae9a" stroke-width="1.5"/>
+        <line x1="280" y1="96" x2="280" y2="236" stroke="#b7ae9a" stroke-width="1" stroke-dasharray="3 3"/>
+
+        <g id="arrows"></g>
+        <g id="cores"></g>
+        <g id="carriers"></g>
+        <g id="parts"></g>
+        <g id="flash"></g>
+
+        <text x="195" y="255" font-size="13" text-anchor="middle" fill="#a5502a" font-weight="600">p region</text>
+        <text x="365" y="255" font-size="13" text-anchor="middle" fill="#22527d" font-weight="600">n region</text>
+        <text x="280" y="86" font-size="12" text-anchor="middle" fill="#5c5c5c" font-weight="600">depletion region</text>
+
+        <g id="photonG" opacity="0">
+          <line x1="-57" y1="-53" x2="0" y2="0" stroke="#b58a00" stroke-width="3"/>
+          <polygon points="0,0 -8,-11 -13,-3" fill="#b58a00"/>
+          <text x="-64" y="-58" font-size="12" fill="#b58a00" font-weight="700">photon</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="right">
+      <!-- voltage gauge -->
+      <svg id="gauge" viewBox="0 0 320 46" role="img" aria-label="reverse voltage level">
+        <text x="45" y="11" font-size="11" fill="#2b2b2b">reverse voltage</text>
+        <rect x="45" y="17" width="267" height="11" rx="3" fill="#e7dfcc" stroke="#cfc6ae" stroke-width="1"/>
+        <rect id="gfillGeiger" x="0" y="17" width="0" height="11" fill="#dcead e"/>
+        <rect id="gfill" x="45" y="17" width="0" height="11" rx="3" fill="#d98a3d"/>
+        <line id="gtick" y1="13" y2="32" stroke="#c0392b" stroke-width="2"/>
+        <text id="gtickLab" y="42" font-size="10.5" fill="#c0392b" text-anchor="middle" font-weight="700">breakdown</text>
+      </svg>
+
+      <svg id="iv" viewBox="0 0 320 196" role="img" aria-label="current versus reverse voltage">
+        <rect id="regR" x="0" y="18" width="0" height="140" fill="#eef4ee"/>
+        <path id="curve" fill="none" stroke="#5c6470" stroke-width="2.5"/>
+        <line id="vbrLine" y1="18" y2="158" stroke="#c0392b" stroke-width="2" stroke-dasharray="5 4"/>
+        <line x1="45" y1="158" x2="312" y2="158" stroke="#2b2b2b" stroke-width="1.6"/>
+        <line x1="45" y1="158" x2="45" y2="18" stroke="#2b2b2b" stroke-width="1.6"/>
+        <text x="52" y="30" font-size="11" fill="#2b2b2b">current</text>
+        <text x="180" y="186" font-size="11" fill="#2b2b2b" text-anchor="middle">reverse voltage &#8594;</text>
+        <text id="vbrLabel" font-size="11" fill="#c0392b" text-anchor="middle" font-weight="700" y="174">breakdown</text>
+        <circle id="opdot" r="6" fill="#d98a3d" stroke="#8a531b" stroke-width="1.4"/>
+      </svg>
+
+      <svg id="out" viewBox="0 0 320 88" role="img" aria-label="output current over time">
+        <line x1="45" y1="70" x2="312" y2="70" stroke="#2b2b2b" stroke-width="1.4"/>
+        <line x1="45" y1="70" x2="45" y2="12" stroke="#2b2b2b" stroke-width="1.4"/>
+        <text x="52" y="22" font-size="10.5" fill="#2b2b2b">output current</text>
+        <text x="180" y="84" font-size="10.5" fill="#2b2b2b" text-anchor="middle">time &#8594;</text>
+        <path id="scope" fill="none" stroke="#3f7d4e" stroke-width="2" d=""/>
+      </svg>
+
+      <div class="explain" id="explain"></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="grp">
+      <button id="prevBtn">&#8592; Prev</button>
+      <button id="nextBtn">Next &#8594;</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <span class="lab">reverse voltage</span>
+      <button id="decBtn" class="vbtn">&minus;</button>
+      <button id="incBtn" class="vbtn">+</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <button id="geigerBtn">Enter Geiger mode</button>
+      <button id="photonBtn" disabled>Send one photon</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+/*
+ * anime.js v3.2.2
+ * (c) 2023 Julian Garnier
+ * Released under the MIT license
+ * animejs.com
+ */
+
+!function(n,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):n.anime=e()}(this,function(){"use strict";var i={update:null,begin:null,loopBegin:null,changeBegin:null,change:null,changeComplete:null,loopComplete:null,complete:null,loop:1,direction:"normal",autoplay:!0,timelineOffset:0},M={duration:1e3,delay:0,endDelay:0,easing:"easeOutElastic(1, .5)",round:0},j=["translateX","translateY","translateZ","rotate","rotateX","rotateY","rotateZ","scale","scaleX","scaleY","scaleZ","skew","skewX","skewY","perspective","matrix","matrix3d"],l={CSS:{},springs:{}};function C(n,e,t){return Math.min(Math.max(n,e),t)}function u(n,e){return-1<n.indexOf(e)}function o(n,e){return n.apply(null,e)}var w={arr:function(n){return Array.isArray(n)},obj:function(n){return u(Object.prototype.toString.call(n),"Object")},pth:function(n){return w.obj(n)&&n.hasOwnProperty("totalLength")},svg:function(n){return n instanceof SVGElement},inp:function(n){return n instanceof HTMLInputElement},dom:function(n){return n.nodeType||w.svg(n)},str:function(n){return"string"==typeof n},fnc:function(n){return"function"==typeof n},und:function(n){return void 0===n},nil:function(n){return w.und(n)||null===n},hex:function(n){return/(^#[0-9A-F]{6}$)|(^#[0-9A-F]{3}$)/i.test(n)},rgb:function(n){return/^rgb/.test(n)},hsl:function(n){return/^hsl/.test(n)},col:function(n){return w.hex(n)||w.rgb(n)||w.hsl(n)},key:function(n){return!i.hasOwnProperty(n)&&!M.hasOwnProperty(n)&&"targets"!==n&&"keyframes"!==n}};function d(n){n=/\(([^)]+)\)/.exec(n);return n?n[1].split(",").map(function(n){return parseFloat(n)}):[]}function c(r,t){var n=d(r),e=C(w.und(n[0])?1:n[0],.1,100),a=C(w.und(n[1])?100:n[1],.1,100),o=C(w.und(n[2])?10:n[2],.1,100),n=C(w.und(n[3])?0:n[3],.1,100),u=Math.sqrt(a/e),i=o/(2*Math.sqrt(a*e)),c=i<1?u*Math.sqrt(1-i*i):0,s=i<1?(i*u-n)/c:-n+u;function f(n){var e=t?t*n/1e3:n,e=i<1?Math.exp(-e*i*u)*(+Math.cos(c*e)+s*Math.sin(c*e)):(1+s*e)*Math.exp(-e*u);return 0===n||1===n?n:1-e}return t?f:function(){var n=l.springs[r];if(n)return n;for(var e=0,t=0;;)if(1===f(e+=1/6)){if(16<=++t)break}else t=0;return n=e*(1/6)*1e3,l.springs[r]=n}}function q(e){return void 0===e&&(e=10),function(n){return Math.ceil(C(n,1e-6,1)*e)*(1/e)}}var H=function(b,e,M,t){if(0<=b&&b<=1&&0<=M&&M<=1){var x=new Float32Array(11);if(b!==e||M!==t)for(var n=0;n<11;++n)x[n]=k(.1*n,b,M);return function(n){return b===e&&M===t||0===n||1===n?n:k(r(n),e,t)}}function r(n){for(var e=0,t=1;10!==t&&x[t]<=n;++t)e+=.1;var r=e+.1*((n-x[--t])/(x[t+1]-x[t])),a=O(r,b,M);if(.001<=a){for(var o=n,u=r,i=b,c=M,s=0;s<4;++s){var f=O(u,i,c);if(0===f)return u;u-=(k(u,i,c)-o)/f}return u}if(0===a)return r;for(var l,d,p=n,h=e,g=e+.1,m=b,v=M,y=0;0<(l=k(d=h+(g-h)/2,m,v)-p)?g=d:h=d,1e-7<Math.abs(l)&&++y<10;);return d}};function r(n,e){return 1-3*e+3*n}function k(n,e,t){return((r(e,t)*n+(3*t-6*e))*n+3*e)*n}function O(n,e,t){return 3*r(e,t)*n*n+2*(3*t-6*e)*n+3*e}e={linear:function(){return function(n){return n}}},t={Sine:function(){return function(n){return 1-Math.cos(n*Math.PI/2)}},Expo:function(){return function(n){return n?Math.pow(2,10*n-10):0}},Circ:function(){return function(n){return 1-Math.sqrt(1-n*n)}},Back:function(){return function(n){return n*n*(3*n-2)}},Bounce:function(){return function(n){for(var e,t=4;n<((e=Math.pow(2,--t))-1)/11;);return 1/Math.pow(4,3-t)-7.5625*Math.pow((3*e-2)/22-n,2)}},Elastic:function(n,e){void 0===e&&(e=.5);var t=C(n=void 0===n?1:n,1,10),r=C(e,.1,2);return function(n){return 0===n||1===n?n:-t*Math.pow(2,10*(n-1))*Math.sin((n-1-r/(2*Math.PI)*Math.asin(1/t))*(2*Math.PI)/r)}}},["Quad","Cubic","Quart","Quint"].forEach(function(n,e){t[n]=function(){return function(n){return Math.pow(n,e+2)}}}),Object.keys(t).forEach(function(n){var r=t[n];e["easeIn"+n]=r,e["easeOut"+n]=function(e,t){return function(n){return 1-r(e,t)(1-n)}},e["easeInOut"+n]=function(e,t){return function(n){return n<.5?r(e,t)(2*n)/2:1-r(e,t)(-2*n+2)/2}},e["easeOutIn"+n]=function(e,t){return function(n){return n<.5?(1-r(e,t)(1-2*n))/2:(r(e,t)(2*n-1)+1)/2}}});var e,t,s=e;function P(n,e){if(w.fnc(n))return n;var t=n.split("(")[0],r=s[t],a=d(n);switch(t){case"spring":return c(n,e);case"cubicBezier":return o(H,a);case"steps":return o(q,a);default:return o(r,a)}}function a(n){try{return document.querySelectorAll(n)}catch(n){}}function I(n,e){for(var t,r=n.length,a=2<=arguments.length?e:void 0,o=[],u=0;u<r;u++)u in n&&(t=n[u],e.call(a,t,u,n))&&o.push(t);return o}function f(n){return n.reduce(function(n,e){return n.concat(w.arr(e)?f(e):e)},[])}function p(n){return w.arr(n)?n:(n=w.str(n)?a(n)||n:n)instanceof NodeList||n instanceof HTMLCollection?[].slice.call(n):[n]}function h(n,e){return n.some(function(n){return n===e})}function g(n){var e,t={};for(e in n)t[e]=n[e];return t}function x(n,e){var t,r=g(n);for(t in n)r[t]=(e.hasOwnProperty(t)?e:n)[t];return r}function D(n,e){var t,r=g(n);for(t in e)r[t]=(w.und(n[t])?e:n)[t];return r}function V(n){var e,t,r,a,o,u,i;return w.rgb(n)?(e=/rgb\((\d+,\s*[\d]+,\s*[\d]+)\)/g.exec(t=n))?"rgba("+e[1]+",1)":t:w.hex(n)?(e=(e=n).replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i,function(n,e,t,r){return e+e+t+t+r+r}),e=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(e),"rgba("+parseInt(e[1],16)+","+parseInt(e[2],16)+","+parseInt(e[3],16)+",1)"):w.hsl(n)?(t=/hsl\((\d+),\s*([\d.]+)%,\s*([\d.]+)%\)/g.exec(t=n)||/hsla\((\d+),\s*([\d.]+)%,\s*([\d.]+)%,\s*([\d.]+)\)/g.exec(t),n=parseInt(t[1],10)/360,u=parseInt(t[2],10)/100,i=parseInt(t[3],10)/100,t=t[4]||1,0==u?r=a=o=i:(r=c(u=2*i-(i=i<.5?i*(1+u):i+u-i*u),i,n+1/3),a=c(u,i,n),o=c(u,i,n-1/3)),"rgba("+255*r+","+255*a+","+255*o+","+t+")"):void 0;function c(n,e,t){return t<0&&(t+=1),1<t&&--t,t<1/6?n+6*(e-n)*t:t<.5?e:t<2/3?n+(e-n)*(2/3-t)*6:n}}function B(n){n=/[+-]?\d*\.?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(%|px|pt|em|rem|in|cm|mm|ex|ch|pc|vw|vh|vmin|vmax|deg|rad|turn)?$/.exec(n);if(n)return n[1]}function m(n,e){return w.fnc(n)?n(e.target,e.id,e.total):n}function v(n,e){return n.getAttribute(e)}function y(n,e,t){var r,a,o;return h([t,"deg","rad","turn"],B(e))?e:(r=l.CSS[e+t],w.und(r)?(a=document.createElement(n.tagName),(n=n.parentNode&&n.parentNode!==document?n.parentNode:document.body).appendChild(a),a.style.position="absolute",a.style.width=100+t,o=100/a.offsetWidth,n.removeChild(a),n=o*parseFloat(e),l.CSS[e+t]=n):r)}function $(n,e,t){var r;if(e in n.style)return r=e.replace(/([a-z])([A-Z])/g,"$1-$2").toLowerCase(),e=n.style[e]||getComputedStyle(n).getPropertyValue(r)||"0",t?y(n,e,t):e}function b(n,e){return w.dom(n)&&!w.inp(n)&&(!w.nil(v(n,e))||w.svg(n)&&n[e])?"attribute":w.dom(n)&&h(j,e)?"transform":w.dom(n)&&"transform"!==e&&$(n,e)?"css":null!=n[e]?"object":void 0}function W(n){if(w.dom(n)){for(var e,t=n.style.transform||"",r=/(\w+)\(([^)]*)\)/g,a=new Map;e=r.exec(t);)a.set(e[1],e[2]);return a}}function X(n,e,t,r){var a=u(e,"scale")?1:0+(u(a=e,"translate")||"perspective"===a?"px":u(a,"rotate")||u(a,"skew")?"deg":void 0),o=W(n).get(e)||a;return t&&(t.transforms.list.set(e,o),t.transforms.last=e),r?y(n,o,r):o}function T(n,e,t,r){switch(b(n,e)){case"transform":return X(n,e,r,t);case"css":return $(n,e,t);case"attribute":return v(n,e);default:return n[e]||0}}function E(n,e){var t=/^(\*=|\+=|-=)/.exec(n);if(!t)return n;var r=B(n)||0,a=parseFloat(e),o=parseFloat(n.replace(t[0],""));switch(t[0][0]){case"+":return a+o+r;case"-":return a-o+r;case"*":return a*o+r}}function Y(n,e){var t;return w.col(n)?V(n):/\s/g.test(n)?n:(t=(t=B(n))?n.substr(0,n.length-t.length):n,e?t+e:t)}function F(n,e){return Math.sqrt(Math.pow(e.x-n.x,2)+Math.pow(e.y-n.y,2))}function Z(n){for(var e,t=n.points,r=0,a=0;a<t.numberOfItems;a++){var o=t.getItem(a);0<a&&(r+=F(e,o)),e=o}return r}function G(n){if(n.getTotalLength)return n.getTotalLength();switch(n.tagName.toLowerCase()){case"circle":return 2*Math.PI*v(n,"r");case"rect":return 2*v(t=n,"width")+2*v(t,"height");case"line":return F({x:v(t=n,"x1"),y:v(t,"y1")},{x:v(t,"x2"),y:v(t,"y2")});case"polyline":return Z(n);case"polygon":return e=n.points,Z(n)+F(e.getItem(e.numberOfItems-1),e.getItem(0))}var e,t}function Q(n,e){var e=e||{},n=e.el||function(n){for(var e=n.parentNode;w.svg(e)&&w.svg(e.parentNode);)e=e.parentNode;return e}(n),t=n.getBoundingClientRect(),r=v(n,"viewBox"),a=t.width,t=t.height,e=e.viewBox||(r?r.split(" "):[0,0,a,t]);return{el:n,viewBox:e,x:+e[0],y:+e[1],w:a,h:t,vW:e[2],vH:e[3]}}function z(n,e){var t=/[+-]?\d*\.?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,r=Y(w.pth(n)?n.totalLength:n,e)+"";return{original:r,numbers:r.match(t)?r.match(t).map(Number):[0],strings:w.str(n)||e?r.split(t):[]}}function A(n){return I(n?f(w.arr(n)?n.map(p):p(n)):[],function(n,e,t){return t.indexOf(n)===e})}function _(n){var t=A(n);return t.map(function(n,e){return{target:n,id:e,total:t.length,transforms:{list:W(n)}}})}function R(e){for(var t=I(f(e.map(function(n){return Object.keys(n)})),function(n){return w.key(n)}).reduce(function(n,e){return n.indexOf(e)<0&&n.push(e),n},[]),a={},n=0;n<t.length;n++)!function(n){var r=t[n];a[r]=e.map(function(n){var e,t={};for(e in n)w.key(e)?e==r&&(t.value=n[e]):t[e]=n[e];return t})}(n);return a}function J(n,e){var t,r=[],a=e.keyframes;for(t in e=a?D(R(a),e):e)w.key(t)&&r.push({name:t,tweens:function(n,t){var e,r=g(t),a=(/^spring/.test(r.easing)&&(r.duration=c(r.easing)),w.arr(n)&&(2===(e=n.length)&&!w.obj(n[0])?n={value:n}:w.fnc(t.duration)||(r.duration=t.duration/e)),w.arr(n)?n:[n]);return a.map(function(n,e){n=w.obj(n)&&!w.pth(n)?n:{value:n};return w.und(n.delay)&&(n.delay=e?0:t.delay),w.und(n.endDelay)&&(n.endDelay=e===a.length-1?t.endDelay:0),n}).map(function(n){return D(n,r)})}(e[t],n)});return r}function K(i,c){var s;return i.tweens.map(function(n){var n=function(n,e){var t,r={};for(t in n){var a=m(n[t],e);w.arr(a)&&1===(a=a.map(function(n){return m(n,e)})).length&&(a=a[0]),r[t]=a}return r.duration=parseFloat(r.duration),r.delay=parseFloat(r.delay),r}(n,c),e=n.value,t=w.arr(e)?e[1]:e,r=B(t),a=T(c.target,i.name,r,c),o=s?s.to.original:a,u=w.arr(e)?e[0]:o,a=B(u)||B(a),r=r||a;return w.und(t)&&(t=o),n.from=z(u,r),n.to=z(E(t,u),r),n.start=s?s.end:0,n.end=n.start+n.delay+n.duration+n.endDelay,n.easing=P(n.easing,n.duration),n.isPath=w.pth(e),n.isPathTargetInsideSVG=n.isPath&&w.svg(c.target),n.isColor=w.col(n.from.original),n.isColor&&(n.round=1),s=n})}var U={css:function(n,e,t){return n.style[e]=t},attribute:function(n,e,t){return n.setAttribute(e,t)},object:function(n,e,t){return n[e]=t},transform:function(n,e,t,r,a){var o;r.list.set(e,t),e!==r.last&&!a||(o="",r.list.forEach(function(n,e){o+=e+"("+n+") "}),n.style.transform=o)}};function nn(n,u){_(n).forEach(function(n){for(var e in u){var t=m(u[e],n),r=n.target,a=B(t),o=T(r,e,a,n),t=E(Y(t,a||B(o)),o),a=b(r,e);U[a](r,e,t,n.transforms,!0)}})}function en(n,e){return I(f(n.map(function(o){return e.map(function(n){var e,t,r=o,a=b(r.target,n.name);if(a)return t=(e=K(n,r))[e.length-1],{type:a,property:n.name,animatable:r,tweens:e,duration:t.end,delay:e[0].delay,endDelay:t.endDelay}})})),function(n){return!w.und(n)})}function tn(n,e){function t(n){return n.timelineOffset||0}var r=n.length,a={};return a.duration=r?Math.max.apply(Math,n.map(function(n){return t(n)+n.duration})):e.duration,a.delay=r?Math.min.apply(Math,n.map(function(n){return t(n)+n.delay})):e.delay,a.endDelay=r?a.duration-Math.max.apply(Math,n.map(function(n){return t(n)+n.duration-n.endDelay})):e.endDelay,a}var rn=0;var N,S=[],an=("undefined"!=typeof document&&document.addEventListener("visibilitychange",function(){L.suspendWhenDocumentHidden&&(n()?N=cancelAnimationFrame(N):(S.forEach(function(n){return n._onDocumentVisibility()}),an()))}),function(){!(N||n()&&L.suspendWhenDocumentHidden)&&0<S.length&&(N=requestAnimationFrame(on))});function on(n){for(var e=S.length,t=0;t<e;){var r=S[t];r.paused?(S.splice(t,1),e--):(r.tick(n),t++)}N=0<t?requestAnimationFrame(on):void 0}function n(){return document&&document.hidden}function L(n){var c,s=0,f=0,l=0,d=0,p=null;function h(n){var e=window.Promise&&new Promise(function(n){return p=n});return n.finished=e}e=x(i,n=n=void 0===n?{}:n),t=J(r=x(M,n),n),n=_(n.targets),r=tn(t=en(n,t),r),a=rn,rn++;var e,t,r,a,k=D(e,{id:a,children:[],animatables:n,animations:t,duration:r.duration,delay:r.delay,endDelay:r.endDelay});h(k);function g(){var n=k.direction;"alternate"!==n&&(k.direction="normal"!==n?"normal":"reverse"),k.reversed=!k.reversed,c.forEach(function(n){return n.reversed=k.reversed})}function m(n){return k.reversed?k.duration-n:n}function o(){s=0,f=m(k.currentTime)*(1/L.speed)}function v(n,e){e&&e.seek(n-e.timelineOffset)}function y(e){for(var n=0,t=k.animations,r=t.length;n<r;){for(var a=t[n],o=a.animatable,u=a.tweens,i=u.length-1,c=u[i],i=(i&&(c=I(u,function(n){return e<n.end})[0]||c),C(e-c.start-c.delay,0,c.duration)/c.duration),s=isNaN(i)?1:c.easing(i),f=c.to.strings,l=c.round,d=[],p=c.to.numbers.length,h=void 0,g=0;g<p;g++){var m=void 0,v=c.to.numbers[g],y=c.from.numbers[g]||0,m=c.isPath?function(e,t,n){function r(n){return e.el.getPointAtLength(1<=t+(n=void 0===n?0:n)?t+n:0)}var a=Q(e.el,e.svg),o=r(),u=r(-1),i=r(1),c=n?1:a.w/a.vW,s=n?1:a.h/a.vH;switch(e.property){case"x":return(o.x-a.x)*c;case"y":return(o.y-a.y)*s;case"angle":return 180*Math.atan2(i.y-u.y,i.x-u.x)/Math.PI}}(c.value,s*v,c.isPathTargetInsideSVG):y+s*(v-y);!l||c.isColor&&2<g||(m=Math.round(m*l)/l),d.push(m)}var b=f.length;if(b)for(var h=f[0],M=0;M<b;M++){f[M];var x=f[M+1],w=d[M];isNaN(w)||(h+=x?w+x:w+" ")}else h=d[0];U[a.type](o.target,a.property,h,o.transforms),a.currentValue=h,n++}}function b(n){k[n]&&!k.passThrough&&k[n](k)}function u(n){var e=k.duration,t=k.delay,r=e-k.endDelay,a=m(n);if(k.progress=C(a/e*100,0,100),k.reversePlayback=a<k.currentTime,c){var o=a;if(k.reversePlayback)for(var u=d;u--;)v(o,c[u]);else for(var i=0;i<d;i++)v(o,c[i])}!k.began&&0<k.currentTime&&(k.began=!0,b("begin")),!k.loopBegan&&0<k.currentTime&&(k.loopBegan=!0,b("loopBegin")),a<=t&&0!==k.currentTime&&y(0),(r<=a&&k.currentTime!==e||!e)&&y(e),t<a&&a<r?(k.changeBegan||(k.changeBegan=!0,k.changeCompleted=!1,b("changeBegin")),b("change"),y(a)):k.changeBegan&&(k.changeCompleted=!0,k.changeBegan=!1,b("changeComplete")),k.currentTime=C(a,0,e),k.began&&b("update"),e<=n&&(f=0,k.remaining&&!0!==k.remaining&&k.remaining--,k.remaining?(s=l,b("loopComplete"),k.loopBegan=!1,"alternate"===k.direction&&g()):(k.paused=!0,k.completed||(k.completed=!0,b("loopComplete"),b("complete"),!k.passThrough&&"Promise"in window&&(p(),h(k)))))}return k.reset=function(){var n=k.direction;k.passThrough=!1,k.currentTime=0,k.progress=0,k.paused=!0,k.began=!1,k.loopBegan=!1,k.changeBegan=!1,k.completed=!1,k.changeCompleted=!1,k.reversePlayback=!1,k.reversed="reverse"===n,k.remaining=k.loop,c=k.children;for(var e=d=c.length;e--;)k.children[e].reset();(k.reversed&&!0!==k.loop||"alternate"===n&&1===k.loop)&&k.remaining++,y(k.reversed?k.duration:0)},k._onDocumentVisibility=o,k.set=function(n,e){return nn(n,e),k},k.tick=function(n){u(((l=n)+(f-(s=s||l)))*L.speed)},k.seek=function(n){u(m(n))},k.pause=function(){k.paused=!0,o()},k.play=function(){k.paused&&(k.completed&&k.reset(),k.paused=!1,S.push(k),o(),an())},k.reverse=function(){g(),k.completed=!k.reversed,o()},k.restart=function(){k.reset(),k.play()},k.remove=function(n){cn(A(n),k)},k.reset(),k.autoplay&&k.play(),k}function un(n,e){for(var t=e.length;t--;)h(n,e[t].animatable.target)&&e.splice(t,1)}function cn(n,e){var t=e.animations,r=e.children;un(n,t);for(var a=r.length;a--;){var o=r[a],u=o.animations;un(n,u),u.length||o.children.length||r.splice(a,1)}t.length||r.length||e.pause()}return L.version="3.2.1",L.speed=1,L.suspendWhenDocumentHidden=!0,L.running=S,L.remove=function(n){for(var e=A(n),t=S.length;t--;)cn(e,S[t])},L.get=T,L.set=nn,L.convertPx=y,L.path=function(n,e){var t=w.str(n)?a(n)[0]:n,r=e||100;return function(n){return{property:n,el:t,svg:Q(t),totalLength:G(t)*(r/100)}}},L.setDashoffset=function(n){var e=G(n);return n.setAttribute("stroke-dasharray",e),e},L.stagger=function(n,e){var i=(e=void 0===e?{}:e).direction||"normal",c=e.easing?P(e.easing):null,s=e.grid,f=e.axis,l=e.from||0,d="first"===l,p="center"===l,h="last"===l,g=w.arr(n),m=g?parseFloat(n[0]):parseFloat(n),v=g?parseFloat(n[1]):0,y=B(g?n[1]:n)||0,b=e.start||0+(g?m:0),M=[],x=0;return function(n,e,t){if(d&&(l=0),p&&(l=(t-1)/2),h&&(l=t-1),!M.length){for(var r,a,o,u=0;u<t;u++)s?(r=p?(s[0]-1)/2:l%s[0],a=p?(s[1]-1)/2:Math.floor(l/s[0]),r=r-u%s[0],a=a-Math.floor(u/s[0]),o=Math.sqrt(r*r+a*a),"x"===f&&(o=-r),M.push(o="y"===f?-a:o)):M.push(Math.abs(l-u)),x=Math.max.apply(Math,M);c&&(M=M.map(function(n){return c(n/x)*x})),"reverse"===i&&(M=M.map(function(n){return f?n<0?-1*n:-n:Math.abs(x-n)}))}return b+(g?(v-m)/x:m)*(Math.round(100*M[e])/100)+y}},L.timeline=function(u){var i=L(u=void 0===u?{}:u);return i.duration=0,i.add=function(n,e){var t=S.indexOf(i),r=i.children;function a(n){n.passThrough=!0}-1<t&&S.splice(t,1);for(var o=0;o<r.length;o++)a(r[o]);t=D(n,x(M,u)),t.targets=t.targets||u.targets,n=i.duration,t.autoplay=!1,t.direction=i.direction,t.timelineOffset=w.und(e)?n:E(e,n),a(i),i.seek(t.timelineOffset),e=L(t),a(e),r.push(e),n=tn(r,u);return i.delay=n.delay,i.endDelay=n.endDelay,i.duration=n.duration,i.seek(0),i.reset(),i.autoplay&&i.play(),i},i},L.easing=P,L.penner=s,L.random=function(n,e){return Math.floor(Math.random()*(e-n+1))+n},L});
+</script>
+<script>
+(function(){
+  "use strict";
+  var VMAX=100, VBR=60, GEIGERV=80, QUENCHV=42, SVGNS="http://www.w3.org/2000/svg";
+  var JX=280, P_EDGE=132, N_EDGE=428, DEV_T=104, DEV_B=228;
+
+  var _seed=987654321;
+  function rnd(){ _seed=(_seed*1103515245+12345)&0x7fffffff; return _seed/0x7fffffff; }
+  function reseed(){ _seed=987654321; }
+
+  function Whalf(v){ return 14 + 62*Math.sqrt(Math.max(0,v)/VMAX); }
+
+  var L=45,R=312;
+  function px(v){ return L + (v/VMAX)*(R-L); }
+  var IV_T=18, IV_B=158;
+  function py(I){ return IV_B - I*(IV_B-IV_T); }
+  function leak(v){ return 0.02 + 0.015*(v/VMAX); }
+  function curveI(v){ if(v<=VBR) return leak(v); return Math.min(1, leak(VBR)+(v-VBR)*0.5); }
+
+  function mk(t,a){ var e=document.createElementNS(SVGNS,t); for(var k in a) e.setAttribute(k,a[k]); return e; }
+  function clear(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+  function $(id){ return document.getElementById(id); }
+
+  var depl=$('depl'), arrows=$('arrows'), cores=$('cores'), carriers=$('carriers');
+  var partsG=$('parts'), flashG=$('flash'), wireDots=$('wireDots'), blipDots=$('blipDots');
+  var photonG=$('photonG'), amm=$('ammReading');
+  var opdot=$('opdot'), scopeP=$('scope'), explain=$('explain'), stageTitle=$('stageTitle');
+  var photonBtn=$('photonBtn'), incBtn=$('incBtn'), decBtn=$('decBtn');
+  var wire=$('wire'), wireLen=wire.getTotalLength();
+  var gfill=$('gfill');
+
+  // static IV + gauge geometry
+  (function(){
+    var vbrX=px(VBR);
+    var vl=$('vbrLine'); vl.setAttribute('x1',vbrX); vl.setAttribute('x2',vbrX);
+    $('vbrLabel').setAttribute('x',vbrX);
+    var rr=$('regR'); rr.setAttribute('x',vbrX); rr.setAttribute('width', R-vbrX);
+    var d='',f=true;
+    for(var v=0;v<=VMAX;v+=1.5){ d+=(f?'M':'L')+px(v).toFixed(1)+' '+py(curveI(v)).toFixed(1)+' '; f=false; }
+    $('curve').setAttribute('d',d);
+    $('gtick').setAttribute('x1',vbrX); $('gtick').setAttribute('x2',vbrX);
+    $('gtickLab').setAttribute('x',vbrX);
+    var gg=$('gfillGeiger'); gg.setAttribute('x',vbrX); gg.setAttribute('width',R-vbrX); gg.setAttribute('fill','#e2ecdf');
+  })();
+
+  // bulk mobile carriers (background population in the neutral regions)
+  var bulk=[];
+  (function(){
+    var holeXs=[146,168,190,212,234,256], elecXs=[304,326,348,370,392,414], rows=[118,146,174,202,224];
+    function add(x,y,type){
+      var g=mk('g',{});
+      g.appendChild(mk('circle',{cx:0,cy:0,r:7,fill:type==='h'?'#d1552f':'#2f6fb0'}));
+      var t=mk('text',{x:0,y:3.5,'font-size':10,'text-anchor':'middle',fill:'#fff','font-weight':700});
+      t.textContent=type==='h'?'+':'−'; g.appendChild(t);
+      carriers.appendChild(g);
+      bulk.push({el:g,bx:x,by:y,x:x,type:type,ph:rnd()*6.28});
+    }
+    for(var r=0;r<rows.length;r++){
+      for(var i=0;i<holeXs.length;i++) add(holeXs[i],rows[r],'h');
+      for(var j=0;j<elecXs.length;j++) add(elecXs[j],rows[r],'e');
+    }
+  })();
+
+  var wdots=[];
+  (function(){ for(var i=0;i<12;i++){ var c=mk('circle',{r:4,fill:'#e6b800',opacity:0}); wireDots.appendChild(c); wdots.push(c); } })();
+
+  // ---------- live physics ----------
+  var parts=[];    // free carriers in flight: {x,y,type,vx,vy,gen,en,ionized}
+  var flashes=[];  // {x,y,age,kind:'ion'|'th'}
+  var blips=[];    // leakage pulses on the wire: {t}
+  var NSCOPE=200, scope=[]; for(var s0=0;s0<NSCOPE;s0++) scope.push(0);
+  var bump=0, fc=0, wirePhase=0, thermalClock=0;
+
+  // behavior of the current step
+  var BH={seeds:false, mult:'none', inject:false, thermalEvery:999999};
+  var SV={v:0};                       // animated voltage value (anime.js tweens this)
+  var dispW=Whalf(0), lastStaticW=-99;
+
+  function multOf(v){ return v>=VBR? 'div' : (v>=45? 'finite' : 'none'); }
+
+  function spawnPair(x,y,gen){
+    parts.push({x:x,y:y,type:'e',vx:0.3,vy:(rnd()-0.5)*0.5,gen:gen,en:0,ionized:false});
+    parts.push({x:x,y:y,type:'h',vx:-0.3,vy:(rnd()-0.5)*0.5,gen:gen,en:0,ionized:false});
+  }
+  function thermalPair(){
+    var W=dispW;
+    var x=JX+(rnd()*2-1)*(W*0.7), y=DEV_T+8+rnd()*(DEV_B-DEV_T-16);
+    spawnPair(x,y,0);
+    flashes.push({x:x,y:y,age:0,kind:'th'});
+  }
+
+  function physics(){
+    var v=SV.v, f=v/VMAX, W=dispW;
+    var mult=BH.mult==='auto'? multOf(v) : BH.mult;
+
+    // thermal generation
+    if(BH.seeds){ thermalClock--; if(thermalClock<=0){ thermalPair(); thermalClock=BH.thermalEvery*(0.6+rnd()*0.8); } }
+
+    // avalanche self-sustains: generation outpaces exit while v stays above breakdown
+    var active = parts.length>=6 && mult==='div';
+    if(active && parts.length<16) spawnPair(JX+(rnd()*2-1)*W*0.5, DEV_T+8+rnd()*(DEV_B-DEV_T-16), 2);
+
+    var next=[];
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      var dir = p.type==='e'? 1:-1;
+      var inD = Math.abs(p.x-JX)<W;
+      var acc = inD? (0.028+0.16*f) : 0.05;
+      p.vx += dir*acc;
+      var cap = 1.0+3.4*f;
+      if(p.vx>cap)p.vx=cap; if(p.vx<-cap)p.vx=-cap;
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.y<DEV_T+4){p.y=DEV_T+4;p.vy=Math.abs(p.vy);} if(p.y>DEV_B-4){p.y=DEV_B-4;p.vy=-Math.abs(p.vy);}
+      if(inD) p.en += Math.abs(p.vx);
+
+      // impact ionization
+      if(inD && p.en>46){
+        if(mult==='div' && parts.length+next.length<40){
+          p.en=0;
+          spawnPair(p.x,p.y,p.gen+1);
+          flashes.push({x:p.x,y:p.y,age:0,kind:'ion'});
+        } else if(mult==='finite' && !p.ionized && p.gen===0){
+          p.ionized=true; p.en=0;
+          spawnPair(p.x,p.y,1);
+          flashes.push({x:p.x,y:p.y,age:0,kind:'ion'});
+        } else p.en=0;
+      }
+
+      // collection at the contacts
+      if(p.type==='h' && p.x<P_EDGE+4){ onExit(active); continue; }
+      if(p.type==='e' && p.x>N_EDGE-4){ onExit(active); continue; }
+      next.push(p);
+    }
+    parts=next;
+
+    function onExit(act){ if(!act){ if(blips.length<4) blips.push({t:0.02}); bump=Math.min(0.14,bump+0.05); } }
+
+    bump*=0.94;
+    // below breakdown the multiplication is finite, so the current stays tiny
+    // no matter how many transient carriers are visible; only the divergent
+    // mode can reach the large saturated current
+    var level;
+    if(mult==='div') level = Math.min(1, parts.length/13);
+    else level = Math.min(0.16, parts.length*0.012 + bump);
+    scope.push(level); scope.shift();
+    return level;
+  }
+
+  // ---------- rendering ----------
+  function drawStatics(W){
+    clear(cores);
+    var coreYs=[120,150,180,210];
+    for(var d=10; d<W-2; d+=20){
+      for(var k=0;k<coreYs.length;k++){
+        [[JX-d,'−'],[JX+d,'+']].forEach(function(c){
+          var g=mk('g',{});
+          g.appendChild(mk('circle',{cx:c[0],cy:coreYs[k],r:6,fill:'none',stroke:'#8a8272','stroke-width':1.4}));
+          var t=mk('text',{x:c[0],y:coreYs[k]+3,'font-size':9,'text-anchor':'middle',fill:'#8a8272','font-weight':700});
+          t.textContent=c[1]; g.appendChild(t); cores.appendChild(g);
+        });
+      }
+    }
+    clear(arrows);
+    var v=SV.v;
+    if(v>2){
+      var aYs=[128,167,206];
+      var op=(0.18+0.72*(v/VMAX));
+      for(var a=0;a<aYs.length;a++)
+        arrows.appendChild(mk('line',{x1:JX+W-6,y1:aYs[a],x2:JX-W+6,y2:aYs[a],stroke:'#6f4aa6','stroke-width':(1.4+1.6*v/VMAX).toFixed(1),'marker-end':'url(#fa)',opacity:op.toFixed(2)}));
+    }
+  }
+
+  function draw(){
+    fc++;
+    var v=SV.v;
+    var target=Whalf(v); dispW += (target-dispW)*0.16;
+    depl.setAttribute('x', JX-dispW); depl.setAttribute('width', 2*dispW);
+    if(Math.abs(dispW-lastStaticW)>0.5){ drawStatics(dispW); lastStaticW=dispW; }
+
+    var level=physics();
+    var big = level>0.45;
+
+    // bulk carriers
+    for(var i=0;i<bulk.length;i++){
+      var b=bulk[i];
+      if(big){
+        b.x += (b.type==='h'? -2.4 : 2.4);
+        if(b.type==='h' && b.x < P_EDGE) b.x = JX - 8 - rnd()*12;
+        if(b.type==='e' && b.x > N_EDGE) b.x = JX + 8 + rnd()*12;
+        b.el.style.display='';
+        b.el.setAttribute('transform','translate('+b.x.toFixed(1)+','+(b.by+1.6*Math.cos(fc*0.05+b.ph*1.3)).toFixed(1)+')');
+      } else {
+        b.x += (b.bx-b.x)*0.2;
+        var vis = b.type==='h' ? (b.bx < JX-dispW-8) : (b.bx > JX+dispW+8);
+        if(!vis){ b.el.style.display='none'; continue; }
+        b.el.style.display='';
+        b.el.setAttribute('transform','translate('+(b.x+1.7*Math.sin(fc*0.06+b.ph)).toFixed(1)+','+(b.by+1.5*Math.cos(fc*0.05+b.ph*1.3)).toFixed(1)+')');
+      }
+    }
+
+    // free carriers in flight
+    clear(partsG);
+    for(var c=0;c<parts.length;c++){
+      var p=parts[c];
+      partsG.appendChild(mk('circle',{cx:p.x.toFixed(1),cy:p.y.toFixed(1),r:5,fill:p.type==='e'?'#2f6fb0':'#d1552f',stroke:'#fff','stroke-width':1}));
+    }
+
+    // flashes: yellow ring = impact ionization; soft gray ring = thermal generation
+    clear(flashG); var nf=[];
+    for(var f2=0;f2<flashes.length;f2++){
+      var fl=flashes[f2]; fl.age++;
+      if(fl.age<16){ nf.push(fl);
+        flashG.appendChild(mk('circle',{cx:fl.x.toFixed(1),cy:fl.y.toFixed(1),
+          r:(3+fl.age*(fl.kind==='ion'?0.9:0.6)).toFixed(1),fill:'none',
+          stroke: fl.kind==='ion'?'#e6c200':'#9a938a','stroke-width':2.2,
+          opacity:(1-fl.age/16).toFixed(2)}));
+      }
+    }
+    flashes=nf;
+
+    // wire: large current = marching dots; leakage = single slow blips
+    if(big) wirePhase+=0.013;
+    for(var w=0;w<wdots.length;w++){
+      if(!big){ wdots[w].setAttribute('opacity',0); continue; }
+      var pt=wire.getPointAtLength(((w/wdots.length)+wirePhase)%1*wireLen);
+      wdots[w].setAttribute('cx',pt.x); wdots[w].setAttribute('cy',pt.y); wdots[w].setAttribute('opacity',0.95);
+    }
+    clear(blipDots); var nb=[];
+    for(var bl=0;bl<blips.length;bl++){
+      var q=blips[bl]; q.t+=0.006;
+      if(q.t<1){ nb.push(q);
+        var bp=wire.getPointAtLength(q.t*wireLen);
+        blipDots.appendChild(mk('circle',{cx:bp.x,cy:bp.y,r:4,fill:'#e6b800',opacity:0.7}));
+      }
+    }
+    blips=nb;
+
+    // ammeter
+    amm.textContent = big? 'current: large' : (level>0.02? 'current: tiny leakage' : 'current: none');
+
+    // gauge
+    gfill.setAttribute('width', Math.max(0,(px(v)-L)));
+
+    // IV operating dot: x follows the voltage, y follows the actual current
+    opdot.setAttribute('cx',px(v));
+    opdot.setAttribute('cy',py(Math.min(1,Math.max(level, leak(v)*0.4))));
+
+    // rolling oscilloscope
+    var d='',first=true, step=(R-L)/NSCOPE;
+    for(var sx=0;sx<NSCOPE;sx++){
+      d+=(first?'M':'L')+(L+sx*step).toFixed(1)+' '+(70-scope[sx]*52).toFixed(1)+' ';
+      first=false;
+    }
+    scopeP.setAttribute('d',d);
+  }
+
+  // ---------- steps ----------
+  var STEPS=[
+    {id:'junction', v:0, seeds:false, mult:'none',
+     title:'1 / 10  The pn junction at rest',
+     text:'<span class="t">A pn junction and its depletion region</span>The p region holds mobile holes, drawn as orange discs with a plus sign. The n region holds mobile electrons, drawn as blue discs with a minus sign. At the junction the mobile carriers diffuse across, recombine, and leave a thin layer with no mobile carrier. This layer is the depletion region. The depletion region holds only fixed charged cores: negative acceptor cores on the p side, positive donor cores on the n side. No voltage is applied, so no current flows.'},
+    {id:'seeds', v:16, seeds:true, mult:'none',
+     title:'2 / 10  Heat creates seed carriers',
+     text:'<span class="t">Thermal generation and the leakage current</span>A small reverse voltage is applied. The crystal is warm, and heat continuously lifts a few electrons out of their bonds. Each lift creates one free electron and one free hole inside the depletion region; a gray ring marks each such event. This process is thermal generation. The electric field sweeps the electron to the n contact and the hole to the p contact. Each crossing carries a very small charge around the circuit, one faint dot on the wire. These few carriers form the leakage current, and they are the seed carriers for everything that follows.'},
+    {id:'widen', v:36, seeds:true, mult:'none',
+     title:'3 / 10  Reverse bias widens the depletion region',
+     text:'<span class="t">A wider region and a stronger field</span>A larger reverse voltage pulls the mobile holes and the mobile electrons further from the junction, so the depletion region widens. More fixed cores are exposed. The electric field inside the depletion region grows stronger, shown by the arrows, and the seed carriers cross faster. The leakage current stays tiny, because heat sets the number of seed carriers, and the voltage does not change that number.'},
+    {id:'finite', v:52, seeds:true, mult:'finite',
+     title:'4 / 10  Below breakdown: finite multiplication',
+     text:'<span class="t">Impact ionization with a finite multiplication factor</span>The field now accelerates a seed carrier to a high kinetic energy. The carrier hits a lattice atom and knocks one new electron-hole pair free; a yellow ring marks the collision. This collision is impact ionization. The new pair drifts to the contacts, but the chain stops after this step. The multiplication factor, the ratio of the collected current to the seed current, is still finite. The current grows a little and stays small.'},
+    {id:'breakdown', v:VBR, seeds:true, mult:'div',
+     title:'5 / 10  Breakdown: the multiplication diverges',
+     text:'<span class="t">The tiny leakage current becomes a large current</span>At the breakdown voltage each carrier creates on average more than one new carrier before it leaves the depletion region, so the chain no longer stops. The multiplication factor diverges. The same few thermal seed carriers are multiplied into a large current. The large current is the multiplied leakage current, not a new current from nowhere. The external circuit alone limits its size.'},
+    {id:'geiger', v:GEIGERV, seeds:false, mult:'div',
+     title:'6 / 10  Geiger mode: above breakdown, no current',
+     text:'<span class="t">Biased above breakdown, carrying no current</span>Geiger mode holds the reverse voltage above the breakdown voltage. At this moment the depletion region holds no free carrier, so no current flows, and the operating point on the curve stays at zero current. The field is strong enough to multiply the next free carrier without limit. One single carrier will start a self-sustaining avalanche. That carrier can come from one photon.'},
+    {id:'photon', v:GEIGERV, seeds:false, mult:'div', photon:true,
+     title:'7 / 10  One photon triggers the avalanche',
+     text:'<span class="t">One photon, one self-sustaining avalanche</span>One photon enters the depletion region and creates one electron-hole pair. The field accelerates these two carriers, impact ionization multiplies them, and the avalanche becomes self-sustaining: the carrier generation rate exceeds the rate at which carriers leave the region. A large current flows through the junction and around the circuit, and the output shows one pulse. The pulse has the same size for every photon. The avalanche keeps running, because the voltage stays above the breakdown voltage.'},
+    {id:'quench', v:QUENCHV, seeds:false, mult:'auto',
+     title:'8 / 10  Quench: the series resistor stops the avalanche',
+     text:'<span class="t">Quenching stops the avalanche</span>The diode is connected in series with a resistor, and the supply voltage is fixed, so the resistor voltage and the diode voltage always add up to the same total. The avalanche current flows through the resistor, and this current times the resistance is a large voltage drop across the resistor. That drop is taken away from the diode, so the voltage across the diode falls below the breakdown voltage. The field weakens, the carriers no longer reach the energy for impact ionization, and the current falls to zero. The avalanche current switches itself off through the resistor. This step is quenching.'},
+    {id:'reset', v:GEIGERV, seeds:false, mult:'div',
+     title:'9 / 10  Reset: the voltage recovers',
+     text:'<span class="t">Back above breakdown</span>The avalanche current has stopped, so the resistor no longer takes any voltage, and the voltage across the diode rises back above the breakdown voltage. The depletion region again holds no free carrier, and no current flows. The detector can register the next photon. The time from the avalanche to this recovered state is the dead time: a photon that arrives inside this interval produces no count.'},
+    {id:'darkcount', v:GEIGERV, seeds:true, mult:'div', thermalEvery:260, dark:true,
+     title:'10 / 10  Dark count: a thermal seed, no photon',
+     text:'<span class="t">Heat triggers false counts</span>Thermal generation does not stop in Geiger mode. A thermally generated pair appears inside the depletion region with no photon present, and the field multiplies this thermal seed exactly like a photon-generated carrier. The circuit registers a count, the same pulse as for a real photon. This false count is a dark count. Cooling the SPAD lowers the thermal generation rate and with it the dark-count rate. The demonstration repeats: seed, avalanche, quench, reset.'}
+  ];
+  var idx=0, timers=[], frozen=false;
+
+  function later(fn,ms){ if(frozen){ return; } timers.push(setTimeout(fn,ms)); }
+  function cancelAll(){ timers.forEach(clearTimeout); timers=[]; if(window.anime) anime.remove(SV); }
+
+  function tweenV(target,dur){
+    if(frozen){ SV.v=target; return; }
+    anime({targets:SV, v:target, duration:dur||700, easing:'easeInOutQuad'});
+  }
+
+  function firePhoton(){
+    var W=Whalf(GEIGERV);
+    var tx=JX+(rnd()*2-1)*W*0.4, ty=DEV_T+16+rnd()*(DEV_B-DEV_T-50);
+    if(frozen){
+      photonG.setAttribute('opacity','1');
+      photonG.setAttribute('transform','translate('+tx+','+ty+')');
+      spawnPair(tx,ty,0); flashes.push({x:tx,y:ty,age:0,kind:'ion'});
+      return;
+    }
+    photonG.setAttribute('transform','translate('+(tx+120)+','+(ty-140)+')');
+    photonG.setAttribute('opacity','1');
+    anime({targets:photonG, translateX:tx, translateY:ty, duration:520, easing:'linear',
+      update:function(a){ /* anime writes transform */ },
+      complete:function(){
+        photonG.setAttribute('opacity','0');
+        spawnPair(tx,ty,0);
+        flashes.push({x:tx,y:ty,age:0,kind:'ion'});
+      }});
+    // anime sets translate via transform on the group
+  }
+
+  function setStep(i, instant){
+    cancelAll();
+    idx=i; var st=STEPS[i];
+    BH={seeds:!!st.seeds, mult:st.mult, thermalEvery: st.thermalEvery||150};
+    if(st.id!=='quench') parts=[];   // in the quench step the running avalanche dies on screen
+    flashes=[]; blips=[]; bump=0; thermalClock=30;
+    photonG.setAttribute('opacity','0');
+    explain.innerHTML=st.text; stageTitle.textContent=st.title;
+    photonBtn.disabled = !(st.id==='geiger'||st.id==='reset');
+    incBtn.disabled = decBtn.disabled = (i>=5);
+    if(instant){ SV.v=st.v; } else { tweenV(st.v, 800); }
+    if(st.photon){ later(firePhoton, instant?0:900); if(instant){ firePhoton(); } }
+    if(st.dark && !frozen) darkLoop();
+    if(!instant && window.anime){
+      explain.style.opacity=0;
+      anime({targets:explain, opacity:[0,1], duration:450, easing:'linear'});
+    }
+  }
+
+  function darkLoop(){
+    // wait for a thermal seed to start an avalanche, then quench and reset, repeatedly
+    later(function check(){
+      if(parts.length>10){
+        later(function(){ tweenV(QUENCHV,450); }, 900);
+        later(function(){ tweenV(GEIGERV,450); }, 2000);
+        later(function(){ if(STEPS[idx].dark) darkLoop(); }, 2600);
+      } else if(STEPS[idx].dark){ later(check, 300); }
+    }, 300);
+  }
+
+  // free play: +/- voltage in the sweep steps
+  function sweepTo(v){
+    cancelAll();
+    var st = v<8? STEPS[0] : v<30? STEPS[1] : v<45? STEPS[2] : v<VBR? STEPS[3] : STEPS[4];
+    idx=STEPS.indexOf(st);
+    BH={seeds: v>=8, mult: multOf(v), thermalEvery:150};
+    explain.innerHTML=st.text; stageTitle.textContent=st.title;
+    photonBtn.disabled=true; incBtn.disabled=decBtn.disabled=false;
+    tweenV(v, 500);
+  }
+
+  $('nextBtn').onclick=function(){ if(idx<STEPS.length-1) setStep(idx+1); };
+  $('prevBtn').onclick=function(){ if(idx>0) setStep(idx-1); };
+  incBtn.onclick=function(){ sweepTo(Math.min(VBR+4, SV.v+6)); };
+  decBtn.onclick=function(){ sweepTo(Math.max(0, SV.v-6)); };
+  $('geigerBtn').onclick=function(){ setStep(5); };
+  photonBtn.onclick=function(){
+    if(photonBtn.disabled) return;
+    setStep(6);                                  // photon + avalanche
+    later(function(){ setStep(7); }, 2600);      // quench
+    later(function(){ setStep(8); }, 4400);      // reset
+  };
+
+  // ---------- boot ----------
+  function frame(){ draw(); if(!frozen) requestAnimationFrame(frame); }
+
+  var q=location.search.match(/shot=([a-z\-]+)/);
+  if(q){
+    frozen=true; document.body.classList.add('frozen');
+    var found=-1;
+    for(var i=0;i<STEPS.length;i++){ if(STEPS[i].id===q[1]){ found=i; break; } }
+    if(found<0) found=0;
+    reseed();
+    setStep(found, true);
+    dispW=Whalf(SV.v); lastStaticW=-99;
+    var st=STEPS[found];
+    if(st.id==='breakdown'||st.id==='darkcount'){ spawnPair(JX,166,0); }
+    var steps = (st.mult==='div' && (st.photon||st.id==='breakdown'||st.id==='darkcount'))? 130 : 90;
+    for(var k=0;k<steps;k++) draw();
+  } else {
+    setStep(0, true);
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+</body>
+</html>

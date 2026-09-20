@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scattering Processes</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>Elastic scattering, Raman scattering and multi-photon processes</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Scattering Processes animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+const META = { title: 'Scattering Processes', heading: 'Elastic scattering, Raman scattering and multi-photon processes' };
+
+/* ================= scattering scene: level diagrams with a virtual level =================
+   Script 1.4 to 1.6: elastic (Rayleigh) scattering with I_scat proportional to omega^4, multi-photon
+   transitions with omega = omega0 / p, Raman scattering with omega0 = omega1 - omega2.
+   Professor's notes, week 1: virtual level, two-photon absorption, parametric down-conversion. */
+const P = { om: 0.35, spd: 1, proc: 'rayleigh' };          // om: light frequency in units of omega0 (Rayleigh)
+const OM_MIN = 0.05, OM_REF = 0.4, P_MAX = 0.5;
+const iRel = w => Math.pow(w / OM_REF, 4);                  // scattered intensity relative to its value at OM_REF
+const pScat = w => P_MAX * iRel(w);                         // fraction of the incoming photons that is scattered in the picture
+const COL = { blue: '#2d5fb8', red: '#c02626', green: '#1f7038' };
+const val = v => typeof v === 'function' ? v() : v;
+
+/* colour of a photon by its frequency: red for the lowest, blue for the highest of the slider range */
+function hslHex(h, s, l) {
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  const hx = v => Math.round(v * 255).toString(16).padStart(2, '0');
+  return '#' + hx(f(0)) + hx(f(8)) + hx(f(4));
+}
+function fcol(f) { const u = Math.max(0, Math.min(1, (f - OM_MIN) / (OM_REF - OM_MIN))); return hslHex(u * 235, 0.72, 0.4); }
+
+/* text with subscripts (_x or _{xx}) and superscripts (^x or ^{xx}); returns the width */
+function mtxt(s, x, y, o) {
+  o = o || {}; const size = o.size || 20, small = Math.round(size * 0.68);
+  const seg = []; let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if ((ch === '_' || ch === '^') && i + 1 < s.length) {
+      let t; if (s[i + 1] === '{') { const j = s.indexOf('}', i + 2); t = s.slice(i + 2, j < 0 ? s.length : j); i = j < 0 ? s.length : j + 1; }
+      else { t = s[i + 1]; i += 2; }
+      seg.push({ t: t, k: ch === '_' ? 1 : -1 });
+    } else { const j = s.slice(i).search(/[_^]/), t = j < 0 ? s.slice(i) : s.slice(i, i + j); seg.push({ t: t, k: 0 }); i += t.length; }
+  }
+  let w = 0; for (const g of seg) w += textW(g.t, g.k ? small : size, o.weight, o.mono);
+  let cx = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  const q = Object.assign({}, o, { align: 'left' }), qs = Object.assign({}, q, { size: small });
+  for (const g of seg) cx += g.k ? txt(g.t, cx, y + (g.k > 0 ? size * 0.28 : -size * 0.45), qs) : txt(g.t, cx, y, q);
+  return w;
+}
+
+/* ---------- the processes: level diagrams inside boxes of 350 x 620, energies e from 0 (level a) to 1 ---------- */
+const BY = 195, BW = 350, BH = 620, LX1 = 95, LX2 = 255, ATX = 190;
+const BXOF = i => 50 + i * 375;
+const EY = e => BY + 500 - e * 390;
+const PROC = {
+  rayleigh: { title: 'Rayleigh scattering', sub: '1 photon in, 1 photon out, atom back in a', col: C.photon,
+    levels: [{ e: 0, l: 'a' }, { e: 1, l: 'b' }, { e: () => P.om, v: true }],
+    ph: [{ x1: 50, e1: 0, x2: 140, e2: () => P.om, t0: 0.02, t1: 0.36, lab: 'ħω', c: () => fcol(P.om) },
+         { x1: 210, e1: () => P.om, x2: 300, e2: 0, t0: 0.46, t1: 0.8, lab: 'ħω', c: () => fcol(P.om) }],
+    atom: [[0, 0], [0.36, () => P.om], [0.46, 0]], end: 0,
+    bal: 'ω out = ω in' },
+  raman: { title: 'Raman scattering', sub: '1 photon in, 1 photon out, atom left in b', col: C.term,
+    levels: [{ e: 0, l: 'a' }, { e: 0.18, l: 'b' }, { e: 0.85, l: 'c', v: true }],
+    ph: [{ x1: 36, e1: 0, x2: 126, e2: 0.85, t0: 0.02, t1: 0.36, lab: 'ħω_1', c: () => COL.blue },
+         { x1: 210, e1: 0.85, x2: 290, e2: 0.18, t0: 0.46, t1: 0.8, lab: 'ħω_2', c: () => COL.red }],
+    atom: [[0, 0], [0.36, 0.85], [0.46, 0.18]], end: 0.18, mark: { e1: 0, e2: 0.18, x: 240, lab: 'ħω_0' },
+    bal: 'ω_0 = ω_1 − ω_2' },
+  two: { title: 'two-photon absorption', sub: '2 photons in, none out, atom in b', col: C.field,
+    levels: [{ e: 0, l: 'a' }, { e: 1, l: 'b' }, { e: 0.5, v: true }],
+    ph: [{ x1: 40, e1: 0, x2: 130, e2: 0.5, t0: 0.02, t1: 0.4, lab: 'ħω_0/2', c: () => C.photon },
+         { x1: 130, e1: 0.5, x2: 220, e2: 1, t0: 0.02, t1: 0.4, lab: 'ħω_0/2', c: () => C.photon }],
+    atom: [[0, 0], [0.4, 0.5], [0.47, 1]], end: 1,
+    bal: 'ω_0/2 + ω_0/2 = ω_0' },
+  pdc: { title: 'parametric down-conversion', sub: '1 photon in, 2 photons out', col: C.bunch,
+    levels: [{ e: 0, l: 'a' }, { e: 1, l: 'b' }, { e: 0.8, v: true }, { e: 0.3, v: true, x1: 215, x2: 290, nolab: true }],
+    ph: [{ x1: 40, e1: 0, x2: 130, e2: 0.8, t0: 0.02, t1: 0.36, lab: 'ħω_p', c: () => C.field },
+         { x1: 200, e1: 0.8, x2: 250, e2: 0.3, t0: 0.46, t1: 0.8, lab: 'ħω_s', c: () => COL.green },
+         { x1: 250, e1: 0.3, x2: 300, e2: 0, t0: 0.46, t1: 0.8, lab: 'ħω_i', c: () => COL.red }],
+    atom: [[0, 0], [0.36, 0.8], [0.46, 0]], end: 0,
+    bal: 'ω_p = ω_s + ω_i' }
+};
+const ANIM = { t: 0 };                                      // time in cycles of the level-diagram animation
+const CYCLE = 3.2;                                          // seconds per cycle at speed 1
+
+/* ---------- the spatial picture of elastic scattering (steps 2 and 3) ---------- */
+const X0 = 500, X1 = 1535, AX = 1010, AY = 350, VPH = 300, RMAX = 122, RATE = 10;
+const SP = { t: 0, next: 0, ph: [], nIn: 0, nSc: 0 };
+function spReset() { SP.t = 0; SP.next = 0; SP.ph = []; SP.nIn = 0; SP.nSc = 0; }
+function spAdvance(dt) {
+  SP.t += dt;
+  while (SP.next <= SP.t) { SP.ph.push({ tb: SP.next, s: null, th: 0 }); SP.next += 1 / RATE; }
+  const L = AX - X0;
+  for (const p of SP.ph) {
+    const d = VPH * (SP.t - p.tb);
+    if (p.s === null && d >= L) {                           // the photon reaches the atom: scattered or transmitted
+      p.s = Math.random() < pScat(P.om); SP.nIn++;
+      if (p.s) { SP.nSc++; let th; do { th = Math.random() * 2 * Math.PI; } while (Math.abs(th) < 0.3 || Math.abs(th - 2 * Math.PI) < 0.3); p.th = th; }
+    }
+    p.d = d;
+  }
+  SP.ph = SP.ph.filter(p => p.s === null || (p.s ? p.d - L < RMAX : X0 + p.d < X1));
+}
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Virtual level', cap: '1. The virtual level',
+    sub: 'The atom has a ground level a and an excited level b, separated by {ħω₀}. A [virtual level], drawn dashed, is not an eigenstate of the atom: the atom is excited to it only for a very short time and returns immediately. Energy is conserved between the initial and the final state of the whole process, not at the virtual level.',
+    show: ['box0'], ctrl: ['spd'], proc: 'rayleigh' },
+  { short: 'Elastic scattering', cap: '2. Elastic scattering',
+    sub: 'A photon of frequency ω, far below the resonance ω₀, lifts the atom to a virtual level; the atom returns to a at once and emits a photon of the same frequency ω in another direction. No energy stays in the atom, the scattering is [elastic]. Right: the incoming beam, the transmitted beam and the scattered photons.',
+    show: ['box0', 'ray', 'space'], ctrl: ['proc', 'spd'], proc: 'rayleigh' },
+  { short: 'Rayleigh: ω⁴', cap: '3. Rayleigh scattering: the intensity grows as ω⁴',
+    sub: 'For {ω ≪ ω₀} the scattered intensity grows with the fourth power of the frequency, {I_scat ∝ ω⁴}; this is [Rayleigh scattering]. Doubling ω gives 16 times the scattered intensity. The slider sets ω; the plot shows the intensity relative to its value at {ω = 0.4 ω₀}.',
+    show: ['box0', 'ray', 'space', 'plot'], ctrl: ['om', 'spd'], proc: 'rayleigh' },
+  { short: 'Raman scattering', cap: '4. Raman scattering',
+    sub: 'A photon of frequency ω₁ lifts the atom from a to a virtual level c. The atom does not return to a but ends in a real level b above a, and the emitted photon has the lower frequency ω₂. Energy conservation gives {ω₀ = ω₁ − ω₂}, where {ħω₀} is the energy left in the atom, typically in the infrared.',
+    show: ['box0', 'ray', 'box1'], ctrl: ['proc', 'spd'], proc: 'raman' },
+  { short: 'Two-photon absorption', cap: '5. Two-photon absorption',
+    sub: 'In a [multi-photon transition] p photons are absorbed together through virtual levels, each of frequency {ω = ω₀ / p}. Here p = 2: two photons of frequency {ω₀ / 2} bring the atom from a to b. The process is also called [up-conversion].',
+    show: ['box0', 'ray', 'box1', 'box2'], ctrl: ['proc', 'spd'], proc: 'two' },
+  { short: 'Down-conversion', cap: '6. Parametric down-conversion',
+    sub: 'The reverse process: one pump photon of frequency ωₚ is converted into two photons of lower frequency, signal and idler, with {ωₚ = ωₛ + ωᵢ}. The medium, a nonlinear crystal, ends in its initial state a. The two photons are created together and are [entangled].',
+    show: ['box0', 'ray', 'box1', 'box2', 'box3'], ctrl: ['proc', 'spd'], proc: 'pdc' }
+];
+const STEP_OF = { rayleigh: 1, raman: 3, two: 4, pdc: 5 };
+STEPS.forEach(S => { S.enter = () => { P.proc = S.proc; }; });
+const CTRL = {
+  proc: { kind: 'seg', label: 'process', get: () => P.proc, set: v => { P.proc = v; go(STEP_OF[v]); },
+    options: [['rayleigh', 'Rayleigh', C.photon, 'same frequency out'],
+              ['raman', 'Raman', C.term, 'lower frequency out'],
+              ['two', 'Two-photon absorption', C.field, 'two photons in'],
+              ['pdc', 'Down-conversion', C.bunch, 'one in, two out']] },
+  om: { kind: 'range', label: 'frequency ω', min: OM_MIN, max: OM_REF, step: 0.01, get: () => P.om,
+    set: v => { P.om = v; SP.nIn = 0; SP.nSc = 0; }, fmt: v => v.toFixed(2) + ' ω₀' },
+  spd: { kind: 'log', label: 'speed', min: 0.2, max: 5, get: () => P.spd, set: v => { P.spd = v; }, fmt: v => v.toFixed(1) + ' x' }
+};
+
+/* ================= drawing ================= */
+function wavyArrow(x1, y1, x2, y2, col) {                   // a photon: sine wiggle along the line plus an arrow head
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+  const Lw = L - 14, n = Math.max(12, Math.round(Lw / 3));
+  ctx.beginPath();
+  for (let k = 0; k <= n; k++) {
+    const s = Lw * k / n, w = 5 * Math.sin(s / 16 * 2 * Math.PI) * Math.min(1, s / 12, (Lw - s) / 12);
+    const x = x1 + ux * s + nx * w, y = y1 + uy * s + ny * w;
+    k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.stroke();
+  arrow(x1 + ux * Lw, y1 + uy * Lw, x2, y2, col, 2.4, 13);
+}
+function photonLabel(ph, bx, col) {
+  const x1 = bx + ph.x1, y1 = EY(val(ph.e1)), x2 = bx + ph.x2, y2 = EY(val(ph.e2));
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), ux = dy / L, uy = -dx / L;    // unit normal pointing away from the levels
+  const size = 20, w = mtxtW(ph.lab, size), h = size;
+  const d = 12 + Math.abs(ux) * w / 2 + Math.abs(uy) * h / 2;
+  const cx = (x1 + x2) / 2 + ux * d, cy = (y1 + y2) / 2 + uy * d;
+  mtxt(ph.lab, cx, cy + h * 0.35, { size: size, weight: 700, align: 'center', color: col });
+}
+function mtxtW(s, size) { const p = GA; GA = 0; const w = mtxt(s, -5000, -5000, { size: size, weight: 700 }); GA = p; ctx.globalAlpha = p; return w; }
+function atomAt(pr, u) {
+  let e = 0; for (const a of pr.atom) if (u >= a[0]) e = val(a[1]);
+  return e;
+}
+function drawBox(key, i, aPh) {
+  const pr = PROC[key], bx = BXOF(i), u = ANIM.t % 1;
+  rrect(bx, BY, BW, BH, 14, C.panel2, alpha(pr.col, .7), 2);
+  if (aPh < 1) group(1 - aPh, () => {
+    txt('levels of the atom', bx + BW / 2, BY + 38, { size: 24, weight: 700, align: 'center', color: C.ink });
+    txt('ground level a, excited level b', bx + BW / 2, BY + 64, { size: 17, align: 'center', color: C.muted });
+    const x = bx + 328, ya = EY(0), yb = EY(1);
+    arrow(x, ya - 4, x, yb + 4, C.field, 2, 10); arrow(x, yb + 4, x, ya - 4, C.field, 2, 10);
+    mtxt('ħω_0', x - 9, (ya + yb) / 2 + 7, { size: 20, weight: 700, align: 'right', color: C.field });
+  });
+  if (aPh > 0) group(aPh, () => {
+    txt(pr.title, bx + BW / 2, BY + 38, { size: 24, weight: 700, align: 'center', color: pr.col });
+    txt(pr.sub, bx + BW / 2, BY + 64, { size: 17, align: 'center', color: C.muted });
+  });
+  for (const lv of pr.levels) {                             // level lines with their names
+    const y = EY(val(lv.e)), x1 = bx + (lv.x1 || LX1), x2 = bx + (lv.x2 || LX2);
+    line(x1, y, x2, y, lv.v ? C.muted : C.ink, lv.v ? 2 : 3, lv.v ? [8, 6] : []);
+    if (lv.l) txt(lv.l, x1 - 6, y + 7, { size: 23, weight: 700, align: 'right', color: lv.v ? C.muted : C.ink });
+    if (lv.v && !lv.nolab) txt('virtual', x2 + 8, y + 6, { size: 17, color: C.muted });
+  }
+  if (aPh > 0) group(aPh, () => {
+    for (const ph of pr.ph) {                               // photon arrows and their labels
+      const col = ph.c();
+      wavyArrow(bx + ph.x1, EY(val(ph.e1)), bx + ph.x2, EY(val(ph.e2)), col);
+      photonLabel(ph, bx, col);
+    }
+    if (pr.mark) {
+      const m = pr.mark, x = bx + m.x, y1 = EY(m.e1), y2 = EY(m.e2);
+      arrow(x, y1 - 3, x, y2 + 3, C.field, 2, 9); arrow(x, y2 + 3, x, y1 - 3, C.field, 2, 9);
+      mtxt(m.lab, x + 9, (y1 + y2) / 2 + 7, { size: 19, weight: 700, color: C.field });
+    }
+    mtxt(pr.bal, bx + BW / 2, BY + 568, { size: 22, weight: 700, align: 'center', color: C.field });
+  });
+  /* the atom, a dot on its current level */
+  const e = aPh > 0.5 ? atomAt(pr, u) : 0;
+  let aa = 1;
+  if (pr.end !== 0 && aPh > 0.5) aa = u > 0.9 ? (1 - u) / 0.1 : u < 0.05 ? u / 0.05 : 1;
+  group(aa, () => dot(bx + ATX, EY(e), 10, C.ink));
+  if (i === 0) txt('atom', bx + ATX, EY(0) + 30, { size: 17, align: 'center', color: C.muted });
+  /* moving photons */
+  if (aPh > 0.5) for (const ph of pr.ph) {
+    if (u < ph.t0 || u > ph.t1) continue;
+    const s = (u - ph.t0) / (ph.t1 - ph.t0);
+    dot(bx + ph.x1 + (ph.x2 - ph.x1) * s, EY(val(ph.e1)) + (EY(val(ph.e2)) - EY(val(ph.e1))) * s, 8, ph.c(), true);
+  }
+}
+function drawSpace() {
+  const col = fcol(P.om);
+  rrect(470, BY, 1085, 315, 14, C.panel2, C.line, 1.5);
+  txt('in space', 490, BY + 34, { size: 21, weight: 700, color: C.ink });
+  ctx.fillStyle = alpha(col, .12); ctx.fillRect(X0, AY - 14, AX - X0, 28);
+  ctx.fillStyle = alpha(col, .06); ctx.fillRect(AX, AY - 14, X1 - AX, 28);
+  txt('incoming light, frequency ω', X0, AY - 30, { size: 18, weight: 700, color: col });
+  txt('transmitted', X1, AY - 30, { size: 18, align: 'right', color: C.muted });
+  const L = AX - X0;
+  for (const p of SP.ph) {
+    if (p.s === null) dot(X0 + p.d, AY, 8, col, true);
+    else if (p.s) { const r = p.d - L; dot(AX + r * Math.cos(p.th), AY + r * Math.sin(p.th), 8, col, true); }
+    else dot(X0 + p.d, AY, 8, col, true);
+  }
+  dot(AX, AY, 12, C.ink);
+  txt('atom', AX, AY + 36, { size: 17, align: 'center', color: C.muted });
+  txt('scattered photons: same frequency ω, other directions', AX, BY + 295, { size: 18, align: 'center', color: col });
+  txt('photons in', 1400, BY + 40, { size: 18, color: C.muted }); txt(String(SP.nIn), 1540, BY + 40, { size: 22, weight: 700, mono: true, align: 'right' });
+  txt('scattered', 1400, BY + 70, { size: 18, color: C.muted }); txt(String(SP.nSc), 1540, BY + 70, { size: 22, weight: 700, mono: true, align: 'right', color: col });
+}
+const PLT = { x: 610, y: 560, w: 870, h: 215 };
+function drawPlot() {
+  const g = chart({ x: PLT.x, y: PLT.y, w: PLT.w, h: PLT.h, xmin: 0, xmax: OM_REF, ymin: 0, ymax: 1.05, xstep: 0.1, fs: 17,
+    xlabel: 'frequency ω in units of ω0', ylabel: 'scattered intensity', yoff: 66 });
+  mtxt('I_{scat} ∝ ω^4,  relative to the value at ω = 0.4 ω_0', PLT.x, PLT.y - 16, { size: 20, weight: 700, color: C.field });
+  ctx.beginPath();
+  for (let k = 0; k <= 80; k++) { const w = OM_REF * k / 80, X = g.X(w), Y = g.Y(iRel(w)); k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+  ctx.strokeStyle = C.field; ctx.lineWidth = 3; ctx.stroke();
+  const x = g.X(P.om), y = g.Y(iRel(P.om)), col = fcol(P.om);
+  line(x, g.Y(0), x, y, col, 1.5, [6, 5]); line(PLT.x, y, x, y, col, 1.5, [6, 5]);
+  dot(x, y, 8, col, true);
+  const lab = 'ω = ' + P.om.toFixed(2) + ' ω0:  I = ' + iRel(P.om).toFixed(3), left = P.om > 0.27;
+  txtBg(lab, left ? x - 18 : x + 18, y - 4, { size: 19, weight: 700, align: left ? 'right' : 'left', color: col, solid: true });
+}
+
+function sceneInit() { spReset(); }
+function sceneStep(dt) {
+  ANIM.t += dt * P.spd / CYCLE;
+  if (cur === 1 || cur === 2) spAdvance(dt * P.spd);
+}
+function sceneDraw() {
+  const S = STEPS[cur].show, a = k => fade(k, S.includes(k));
+  const aB0 = a('box0'), aRay = a('ray'), aSp = a('space'), aPl = a('plot'), aB1 = a('box1'), aB2 = a('box2'), aB3 = a('box3');
+  group(aB0, () => drawBox('rayleigh', 0, aRay));
+  group(aSp, drawSpace);
+  group(aPl, drawPlot);
+  group(aB1, () => drawBox('raman', 1, 1));
+  group(aB2, () => drawBox('two', 2, 1));
+  group(aB3, () => drawBox('pdc', 3, 1));
+}
+const SIM_HOOK = () => ({ P, SP, PROC, STEPS, iRel, pScat, spReset, spAdvance, atomAt, val, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>

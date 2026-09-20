@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photon Timing</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #e9e6df; color: #23272e; height: 100%; }
+  body {
+    font-family: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100vh; overflow: hidden; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  /* ---------- left panel ---------- */
+  #side {
+    background: #f4f2ec; border-right: 1px solid #c6c0b2; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden;
+  }
+  #side h1 { font-size: 15px; font-weight: 700; line-height: 1.3; color: #5d6570; padding: 0 4px; }
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .steps li {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; white-space: nowrap; color: #5d6570; border-left: 3px solid transparent;
+  }
+  .steps li:hover { background: #ebe7de; }
+  .steps li .n {
+    flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid #c6c0b2;
+    display: grid; place-items: center; font-size: 12.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .steps li.active { background: #ebe7de; color: #23272e; font-weight: 700; border-left-color: #b7791f; }
+  .steps li.active .n { background: #b7791f; border-color: #b7791f; color: #fff; }
+  .steps li.done .n { border-color: #b7791f; color: #8f5d12; }
+
+  .card { background: #fbfaf7; border: 1px solid #c6c0b2; border-radius: 12px; padding: 10px 12px 12px; }
+  .card h3 { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: #5d6570; margin-bottom: 8px; }
+  .lights { display: flex; flex-direction: column; gap: 6px; }
+  .light {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+    padding: 5px 10px; border: 2px solid #ddd8cc; border-radius: 10px; background: #f4f2ec; font: inherit; color: inherit;
+  }
+  .light:hover { border-color: var(--c); }
+  .light .sw { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--c); opacity: .45; }
+  .light b { display: block; font-size: 15px; color: var(--c); }
+  .light small { display: block; font-size: 12.5px; color: #5d6570; line-height: 1.25; }
+  .light.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, #fbfaf7); }
+  .light.on .sw { opacity: 1; }
+  .rng label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+  .rng b { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; color: #0f766e; white-space: nowrap; }
+  .rng input[type=range] { width: 100%; margin-top: 6px; accent-color: #0f766e; }
+  .hint { margin-top: auto; font-size: 12px; color: #5d6570; padding: 0 4px; line-height: 1.4; }
+  @media (max-height: 780px) { .hint { display: none; } #side { gap: 10px; padding-top: 12px; } }
+
+  /* ---------- main ---------- */
+  main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 18px 14px; gap: 10px; }
+  header { display: flex; gap: 16px; align-items: flex-start; flex: none; }
+  header .txt { flex: 1; min-width: 0; }
+  header h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  header p { font-size: 17px; line-height: 1.45; color: #3b424c; margin-top: 6px; max-width: 1100px; }
+  header p b { color: #0f766e; }
+  header p .math { font-weight: 600; color: #4c1d95; background: #ebe4fa; border: 1px solid #d6c9f2; border-radius: 6px; padding: 0 7px; margin: 0 1px; white-space: nowrap; }
+  .nav { display: flex; gap: 6px; flex: none; margin-top: 2px; }
+  .nav button {
+    font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    background: #f4f2ec; color: #23272e; border: 1px solid #c6c0b2; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+  }
+  .nav button:hover { border-color: #b7791f; }
+  .nav button:focus-visible { outline: 2px solid #b7791f; outline-offset: 2px; }
+  #cwrap { position: relative; flex: 1; min-height: 0; }
+  #cv {
+    position: absolute; left: 0; top: 0; display: block;
+    background: #f4f2ec; border: 1px solid #c6c0b2; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>When do the photons arrive? Bunched, random, antibunched and g two</h1>
+  <ol id="steps" class="steps"></ol>
+  <div id="ctrls" style="display:flex; flex-direction:column; gap:10px;"></div>
+  <div class="hint">Arrow keys: previous and next step. Space: pause or play.</div>
+</aside>
+
+<main>
+  <header>
+    <div class="txt"><h2 id="cap"></h2><p id="sub"></p></div>
+    <div class="nav" role="group" aria-label="step controls">
+      <button id="prev" type="button" aria-label="previous step">&#9664;</button>
+      <button id="play" type="button" aria-label="pause or play">&#10074;&#10074;</button>
+      <button id="next" type="button" aria-label="next step">&#9654;</button>
+    </div>
+  </header>
+  <div id="cwrap"><canvas id="cv" role="img" aria-label="Photon Timing animation"></canvas></div>
+</main>
+
+<script>
+(function () {
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const LW = 1600, LH = 750;                       // visible logical size; scenes use y from 150 to 900, see boot.js
+const SANS = 'system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const C = {
+  panel: '#f4f2ec', panel2: '#ebe7de', ink: '#23272e', muted: '#5d6570', line: '#c6c0b2', grid: '#dcd7cb',
+  photon: '#c47f16', photonTxt: '#8f5d12', term: '#0f766e', field: '#6d28d9', hot: '#c02626', ok: '#1f7038',
+  bunch: '#b0306f', rand: '#2d5fb8', anti: '#1f7038', d1: '#0f766e', d2: '#6d28d9'
+};
+let scale = 1, FDT = 0.016, cur = 0, playing = true, GA = 1;
+
+/* ================= drawing helpers ================= */
+function alpha(hex, a) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+const font = (size, weight, mono) => (weight || 400) + ' ' + size + 'px ' + (mono ? MONO : SANS);
+function txt(s, x, y, o) {
+  o = o || {};
+  ctx.font = font(o.size || 20, o.weight, o.mono);
+  ctx.fillStyle = o.color || C.ink;
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = GA * (o.alpha == null ? 1 : o.alpha);
+  ctx.fillText(s, x, y);
+  ctx.globalAlpha = GA;
+  return ctx.measureText(s).width;
+}
+function textW(s, size, weight, mono) { ctx.font = font(size, weight, mono); return ctx.measureText(s).width; }
+function txtBg(s, x, y, o) {
+  const w = textW(s, o.size || 20, o.weight, o.mono), h = (o.size || 20) + 8;
+  const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+  rrect(x0 - 6, y - h + 7, w + 12, h, 6, alpha(C.panel, o.solid ? 1 : .92));
+  return txt(s, x, y, o);
+}
+function subTxt(main, sub, x, y, o) {
+  const w1 = txt(main, x, y, o);
+  const w2 = txt(sub, x + w1 + 0.5, y + (o.size || 20) * 0.3, Object.assign({}, o, { size: (o.size || 20) * 0.72 }));
+  return w1 + w2 + 0.5;
+}
+function rrect(x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot(x, y, r, color, glow) {
+  if (glow) { ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, 7); ctx.fillStyle = alpha(color, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = color; ctx.fill();
+}
+function arrow(x1, y1, x2, y2, color, lw, hs) {
+  hs = hs || 12; line(x1, y1, x2, y2, color, lw || 2.5);
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs * Math.cos(a - 0.42), y2 - hs * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hs * Math.cos(a + 0.42), y2 - hs * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+}
+function bracket(x1, x2, y, label, color, size) {
+  line(x1, y - 7, x1, y + 7, color, 2); line(x2, y - 7, x2, y + 7, color, 2); line(x1, y, x2, y, color, 2);
+  if (label) txt(label, (x1 + x2) / 2, y + (size || 18) + 10, { size: size || 18, weight: 600, align: 'center', color: color });
+}
+/* draw fn with an extra opacity a (0..1) */
+function group(a, fn) {
+  if (a < 0.01) return;
+  const p = GA; GA = p * a; ctx.globalAlpha = GA; fn(); GA = p; ctx.globalAlpha = p;
+}
+const FADE = {};
+function fade(key, on) {
+  const v = FADE[key] || 0;
+  return (FADE[key] = on ? Math.min(1, v + FDT * 3.5) : Math.max(0, v - FDT * 6));
+}
+function niceStep(range, target) {
+  if (!(range > 0)) return 1;
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+const intStep = (range, target) => Math.max(1, Math.round(niceStep(range, target)));
+function fmtTick(v, step) { return v.toFixed(step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step) - 1e-9))); }
+const ease = (c, target, rate) => (c == null || !isFinite(c)) ? target : c + (target - c) * Math.min(1, FDT * rate);
+
+/* axes with a light grid; returns value-to-pixel maps */
+function chart(o) {
+  const x = o.x, y = o.y, w = o.w, h = o.h, fs = o.fs || 17;
+  const X = v => x + (v - o.xmin) / (o.xmax - o.xmin) * w;
+  const Y = v => y + h - (v - o.ymin) / (o.ymax - o.ymin) * h;
+  const ys = o.yint ? Math.max(1, Math.round(niceStep(o.ymax - o.ymin, o.yticks || 4))) : niceStep(o.ymax - o.ymin, o.yticks || 4);
+  for (let k = 0; k * ys <= o.ymax + 1e-9; k++) {
+    line(x, Y(k * ys), x + w, Y(k * ys), C.grid, 1);
+    txt(fmtTick(k * ys, ys), x - 9, Y(k * ys) + 6, { size: fs, mono: true, align: 'right', color: C.muted });
+  }
+  const xs = o.xstep || niceStep(o.xmax - o.xmin, 8);
+  for (let k = Math.ceil(o.xmin / xs - 1e-9); k * xs <= o.xmax + 1e-9; k++) {
+    line(X(k * xs), y + h, X(k * xs), y + h + 6, C.muted, 1.2);
+    txt(fmtTick(k * xs, xs), X(k * xs), y + h + fs + 8, { size: fs, mono: true, align: 'center', color: C.muted });
+  }
+  line(x, y + h, x + w, y + h, C.muted, 1.6);
+  line(x, y, x, y + h, C.muted, 1.6);
+  if (o.xlabel) txt(o.xlabel, x + w / 2, y + h + fs + 38, { size: fs + 2, align: 'center', color: C.muted });
+  if (o.ylabel) {
+    ctx.save(); ctx.translate(x - (o.yoff || 62), y + h / 2); ctx.rotate(-Math.PI / 2);
+    txt(o.ylabel, 0, 0, { size: fs + 2, align: 'center', color: C.muted }); ctx.restore();
+  }
+  return { X: X, Y: Y };
+}
+function sourceBox(x, y, w, h, title, sub, col) {
+  rrect(x, y, w, h, 14, C.panel2, col, 2.5);
+  txt(title, x + w / 2, y + h / 2 + (sub ? -4 : 8), { size: 25, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, x + w / 2, y + h / 2 + 24, { size: 18, align: 'center', color: C.muted });
+}
+function detector(x, y, w, h, title, sub, fx, face, col) {
+  if (fx > 0.02) {
+    ctx.save(); ctx.shadowColor = C.photon; ctx.shadowBlur = 36 * fx;
+    rrect(x, y, w, h, 12, alpha(C.photon, 0.25 * fx)); ctx.restore();
+  }
+  rrect(x, y, w, h, 12, C.panel2, fx > 0.02 ? C.photon : col, 2.5);
+  ctx.beginPath();
+  if (face === 'left') ctx.arc(x, y + h / 2, 18, -Math.PI / 2, Math.PI / 2);
+  else ctx.arc(x + w / 2, y + h, 18, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = alpha(C.photon, 0.25 + 0.7 * fx); ctx.fill();
+  const cx = face === 'left' ? x + w / 2 + 10 : x + w / 2;
+  txt(title, cx, y + h / 2 + (sub ? -4 : 8), { size: 23, weight: 700, align: 'center', color: col });
+  if (sub) txt(sub, cx, y + h / 2 + 22, { size: 17, align: 'center', color: C.muted });
+  if (fx > 0.05) txt('click', x + w - 12, y + 24, { size: 18, weight: 700, align: 'right', color: C.photonTxt, alpha: Math.min(1, fx * 1.5) });
+}
+
+/* rich text: words in [brackets] are drawn bold in the term colour */
+function richTokens(str) {
+  const out = []; let space = false;
+  for (const seg of str.split(/(\[[^\]]+\])/)) {
+    if (!seg) continue;
+    const b = seg[0] === '[' && seg[seg.length - 1] === ']', t = b ? seg.slice(1, -1) : seg;
+    for (const p of t.split(/(\s+)/)) {
+      if (!p) continue;
+      if (/^\s+$/.test(p)) { space = true; continue; }
+      out.push({ w: p, b: b, sp: space && out.length > 0 }); space = false;
+    }
+  }
+  return out;
+}
+function richRows(str, maxW, size) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    cx += w;
+  }
+  return row + 1;
+}
+function drawRich(str, x, y, maxW, size, lh, color) {
+  const toks = richTokens(str), spW = textW(' ', size);
+  let cx = 0, row = 0;
+  for (const t of toks) {
+    const w = textW(t.w, size, t.b ? 700 : 400), gap = t.sp ? spW : 0;
+    if (cx > 0 && cx + gap + w > maxW) { row++; cx = 0; } else cx += gap;
+    txt(t.w, x + cx, y + row * lh, { size: size, weight: t.b ? 700 : 400, color: t.b ? C.term : color });
+    cx += w;
+  }
+  return row + 1;
+}
+
+/* ================= random numbers ================= */
+const R = {
+  exp: rate => -Math.log(1 - Math.random()) / rate,
+  spare: null,
+  gauss() {                                       // Marsaglia polar method: two independent normals per call
+    if (R.spare !== null) { const g = R.spare; R.spare = null; return g; }
+    let u, v, q;
+    do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; q = u * u + v * v; } while (q >= 1 || q === 0);
+    const f = Math.sqrt(-2 * Math.log(q) / q);
+    R.spare = v * f; return u * f;
+  },
+  poisson(m) {                                    // Knuth; the first test is exact because 1 - m <= exp(-m)
+    if (m <= 0) return 0;
+    let p = Math.random();
+    if (p < 1 - m) return 0;
+    const L = Math.exp(-m); let k = 0;
+    while (p > L) { k++; p *= Math.random(); }
+    return k;
+  }
+};
+const LF = [0];
+function lnFact(n) { while (LF.length <= n) LF.push(LF[LF.length - 1] + Math.log(LF.length)); return LF[n]; }
+const pPois = (n, m) => m <= 0 ? (n === 0 ? 1 : 0) : Math.exp(-m + n * Math.log(m) - lnFact(n));
+
+/* Thermal (chaotic) light: complex Gaussian field with correlation time 2 tb (Ornstein-Uhlenbeck),
+   photons emitted with probability proportional to the intensity |E|^2 (mean intensity 1).
+   Its intensity correlation, and so g2(tau) - 1, decays as exp(-tau / tb). Returns next() for photon times. */
+function thermalStream(rate, tb) {
+  const tauE = 2 * tb, dt = tauE / 30, a = Math.exp(-dt / tauE), b = Math.sqrt((1 - a * a) / 2);
+  let er = R.gauss() * Math.SQRT1_2, ei = R.gauss() * Math.SQRT1_2, tc = 0;
+  const q = [], s = { t: 0, I: [], keepI: false };
+  s.next = () => {
+    while (!q.length) {
+      const I = er * er + ei * ei;
+      if (s.keepI) s.I.push(tc, I);
+      const n = R.poisson(rate * I * dt);
+      for (let k = 0; k < n; k++) q.push(tc + Math.random() * dt);
+      if (n > 1) q.sort((u, v) => u - v);
+      er = a * er + b * R.gauss(); ei = a * ei + b * R.gauss();
+      tc += dt;
+    }
+    return (s.t = q.shift());
+  };
+  return s;
+}
+/* One emitter: after each photon it is re-excited (rate r1), then decays and emits (rate r2).
+   With r1 + r2 = 1/ta and mean rate r1 r2 / (r1 + r2) = rate: g2(tau) = 1 - exp(-tau / ta). Needs rate * ta <= 1/4. */
+function emitterStream(rate, ta) {
+  const A = 1 / ta, D = Math.sqrt(Math.max(0, A * A - 4 * A * rate));
+  const r1 = (A + D) / 2, r2 = (A - D) / 2, s = { t: 0 };
+  s.next = () => (s.t += R.exp(r1) + R.exp(r2));
+  return s;
+}
+function randomStream(rate) { const s = { t: 0 }; s.next = () => (s.t += R.exp(rate)); return s; }
+
+const META = { title: 'Photon Timing', heading: 'When do the photons arrive? Bunched, random, antibunched and g two' };
+
+/* ================= timing scene; time unit = average time between photons ================= */
+const LIGHTS = [
+  ['bunched', 'Bunched', C.bunch, 'thermal lamp, photons in groups'],
+  ['random', 'Random', C.rand, 'laser, photons independent'],
+  ['antibunched', 'Antibunched', C.anti, 'single emitter, one at a time']];
+const LCOL = { bunched: C.bunch, random: C.rand, antibunched: C.anti };
+const TB_LANE = 1.5, TB_G2 = 1.0, TA = 0.25;    // correlation time (bunched) and recovery time (antibunched)
+function makeSource(type, tb) {
+  if (type === 'bunched') return thermalStream(1, tb);
+  if (type === 'antibunched') return emitterStream(1, TA);
+  return randomStream(1);
+}
+const g2exact = (type, tau) => type === 'bunched' ? 1 + Math.exp(-tau / TB_G2) : type === 'antibunched' ? 1 - Math.exp(-tau / TA) : 1;
+
+/* steps 2 and 3: three lanes */
+const LN = { spd: 1.5 }, SPAN = 10, SHORT = 0.1;
+const LTYPES = ['bunched', 'random', 'antibunched'];
+function lnReset() {
+  LN.src = LTYPES.map(t => makeSource(t, TB_LANE)); LN.nx = LN.src.map(s => s.next());
+  LN.t = [[], [], []]; LN.prev = [null, null, null]; LN.gap = [[0, 0], [0, 0], [0, 0]]; LN.now = 0;
+  lnAdvance(SPAN + 0.5);
+}
+const LONG = [0, 0, 0];                          // long-run fraction of short gaps for each light
+function lnLongRun() {
+  LTYPES.forEach((t, i) => {
+    const s = makeSource(t, TB_LANE); let p = s.next(), n = 0, sh = 0;
+    for (let k = 0; k < 40000; k++) { const q = s.next(); n++; if (q - p < SHORT) sh++; p = q; }
+    LONG[i] = sh / n;
+  });
+}
+function lnAdvance(d) {
+  LN.now += d;
+  for (let i = 0; i < 3; i++) {
+    while (LN.nx[i] <= LN.now) {
+      const t = LN.nx[i];
+      if (LN.prev[i] != null) { LN.gap[i][0]++; if (t - LN.prev[i] < SHORT) LN.gap[i][1]++; }
+      LN.prev[i] = t; LN.t[i].push(t); LN.nx[i] = LN.src[i].next();
+    }
+    let c = 0; while (c < LN.t[i].length && LN.t[i][c] < LN.now - SPAN - 1) c++;
+    if (c) LN.t[i].splice(0, c);
+  }
+}
+
+/* steps 4 to 6: one stream, every photon used once as the reference */
+const RANGE = 3, NB = 30, BW = RANGE / NB;
+const CR = { type: 'bunched', tau: 0.3, spd: 0.6 };
+function crReset() {
+  CR.src = makeSource(CR.type, TB_G2);
+  CR.times = [CR.src.next()]; CR.cur = 0; CR.next = 0; CR.hist = new Float64Array(NB); CR.nRef = 0;
+  CR.ph = 1; CR.acc = 0; CR.tDisp = CR.times[0]; CR.from = CR.tDisp; CR.slide = 1; CR.ys = null;
+}
+function crProcess() {
+  const i = CR.next, t0 = CR.times[i];
+  while (CR.times[CR.times.length - 1] < t0 + RANGE + 0.3) CR.times.push(CR.src.next());
+  for (let j = i + 1; j < CR.times.length; j++) {
+    const d = CR.times[j] - t0; if (d >= RANGE) break;
+    CR.hist[Math.min(NB - 1, Math.floor(d / BW))]++;
+  }
+  CR.nRef++; CR.cur = i; CR.next = i + 1;
+  if (CR.cur > 3000) { const cut = CR.cur - 100; CR.times.splice(0, cut); CR.cur -= cut; CR.next -= cut; }
+}
+function crStep(dt) {
+  if (CR.spd <= 5) {
+    CR.ph += dt * CR.spd;
+    if (CR.ph >= 1) {
+      CR.ph = 0; const from = CR.nRef ? CR.times[CR.cur] : null;
+      crProcess(); CR.from = from == null ? CR.times[CR.cur] : from; CR.slide = 0;
+    }
+    CR.slide = Math.min(1, CR.slide + dt / Math.min(0.45, 0.5 / CR.spd));
+    const e = (1 - Math.cos(Math.PI * CR.slide)) / 2;
+    CR.tDisp = CR.from + (CR.times[CR.cur] - CR.from) * e;
+  } else {
+    CR.acc += dt * CR.spd; const t0 = performance.now();
+    while (CR.acc >= 1) { CR.acc -= 1; crProcess(); if (performance.now() - t0 > 9) { CR.acc = 0; break; } }
+    CR.tDisp = CR.times[CR.cur]; CR.slide = 1;
+  }
+}
+const tauBin = () => Math.round(CR.tau / BW);
+const ratio = k => CR.nRef ? CR.hist[k] / (CR.nRef * BW) : 0;
+
+/* ================= steps ================= */
+const STEPS = [
+  { short: 'Same count, other timing', cap: '1. Equal counts, different timing',
+    sub: 'A [counting window] is a time interval of length T; the [count] n is the number of photons detected in it. Both windows contain 5 photons, so both give n = 5. In the upper window the photons are close together, in the lower one they are evenly spaced. The count alone does not distinguish the two cases.',
+    show: ['two'], ctrl: [] },
+  { short: 'Three streams', cap: '2. Bunched, random and antibunched photon streams',
+    sub: 'The three streams have the same average rate. [Bunched], thermal light: photons often arrive close together. [Random], coherent light from an ideal laser: each photon is independent of the others. [Antibunched], a single emitter: immediately after one photon, a second one almost never arrives.',
+    show: ['lanes'], ctrl: ['lspd'] },
+  { short: 'Gaps', cap: '3. Gaps between photons',
+    sub: 'A [gap] is the time from one photon to the next. Gaps shorter than a tenth of the average gap are marked red. In the long run, bunched light has the most short gaps, random light fewer, antibunched light almost none.',
+    show: ['lanes', 'gaps'], ctrl: ['lspd'] },
+  { short: 'The HBT question', cap: '4. The probability of a second photon at delay τ',
+    sub: 'One photon is taken as the [reference]. The question is whether any later photon, not only the next one, arrives a [delay] τ after it. The green slot is a short interval of width 0.1 that begins at τ; the slider moves it. The Hanbury Brown-Twiss experiment measures exactly this quantity.',
+    show: ['one', 'slot'], ctrl: ['light', 'tau', 'cspd'], spd: 0.6 },
+  { short: 'g two at one delay', cap: '5. g two at one delay',
+    sub: 'Every photon is used once as the reference, and the photons that fall into the slot are counted. Independent photons with the same average rate would give references × slot width × rate. For many references, the ratio of the two numbers is [g two of τ], the second-order correlation function, averaged over the slot.',
+    show: ['one', 'slot', 'tally'], ctrl: ['light', 'tau', 'cspd'], spd: 30 },
+  { short: 'g two curve', cap: '6. The function g two of τ',
+    sub: 'Repeating the measurement for every delay gives the curve g two of τ; each bar is the average over one slot. Its value at τ = 0 classifies the light: larger than 1 for bunched, thermal light; equal to 1 at all delays for random, coherent light; smaller than 1 for antibunched light from a single emitter. Classical light never gives a value below 1 at τ = 0.',
+    show: ['one', 'curve'], ctrl: ['light', 'cspd'], spd: 300 }
+];
+STEPS.forEach(S => { S.enter = () => { if (S.spd) CR.spd = S.spd; }; });
+const CTRL = {
+  lspd: { kind: 'log', label: 'playback', min: 0.2, max: 10, get: () => LN.spd, set: v => { LN.spd = v; }, fmt: v => v.toFixed(1) + ' photons shown/s' },
+  cspd: { kind: 'log', label: 'playback', min: 0.2, max: 3000, get: () => CR.spd, set: v => { CR.spd = v; }, fmt: v => (v < 10 ? v.toFixed(1) : String(Math.round(v))) + ' references/s' },
+  tau: { kind: 'range', label: 'delay τ', min: 0, max: 2.9, step: 0.1, get: () => CR.tau, set: v => { CR.tau = v; }, fmt: v => (+v).toFixed(1) },
+  light: { kind: 'seg', label: 'light source', options: LIGHTS, get: () => CR.type, set: v => { CR.type = v; crReset(); } }
+};
+
+/* ================= drawing ================= */
+function drawTwo() {
+  const wx = 470, ww = 760, rows = [
+    { y: 330, pos: [0.40, 0.45, 0.49, 0.53, 0.58], label: 'close together' },
+    { y: 590, pos: [0.1, 0.3, 0.5, 0.7, 0.9], label: 'evenly spaced' }];
+  for (const r of rows) {
+    rrect(wx, r.y - 70, ww, 140, 12, alpha(C.term, .10), C.term, 2.5);
+    line(wx - 40, r.y, wx + ww + 60, r.y, C.muted, 2);
+    for (const p of r.pos) { const x = wx + p * ww; line(x, r.y - 34, x, r.y + 34, C.photonTxt, 4); dot(x, r.y - 34, 6, C.photon); }
+    txt(r.label, wx - 60, r.y + 8, { size: 24, weight: 700, align: 'right', color: C.ink });
+    txt('n = 5', wx + ww + 90, r.y + 10, { size: 30, weight: 700, color: C.term });
+  }
+  bracket(wx, wx + ww, 720, 'window of length T', C.term, 20);
+  arrow(wx + ww - 150, 800, wx + ww + 60, 800, C.muted, 2, 11);
+  txt('time', wx + ww - 160, 806, { size: 19, align: 'right', color: C.muted });
+}
+const LX0 = 330, LX1 = 1540, LPX = (LX1 - LX0) / SPAN;
+function drawLanes(aGaps) {
+  const X = t => LX1 - (LN.now - t) * LPX;
+  const info = [['Bunched', 'thermal light', ''], ['Random', 'coherent light', '(ideal laser)'], ['Antibunched', 'single emitter', '']];
+  LTYPES.forEach((type, i) => {
+    const y = 285 + i * 180, col = LCOL[type];
+    rrect(30, y - 78, 1540, 156, 14, C.panel2, C.line, 1.5);
+    txt(info[i][0], 50, y - 30, { size: 28, weight: 700, color: col });
+    txt(info[i][1], 50, y + 2, { size: 19, color: C.muted });
+    txt(info[i][2], 50, y + 26, { size: 19, color: C.muted });
+    if (aGaps > 0.01) group(aGaps, () => {
+      const g = LN.gap[i];
+      txt('short gaps in the long run: ' + (100 * LONG[i]).toFixed(1) + ' %', 50, y + 62, { size: 19, weight: 700, color: C.hot });
+    });
+    ctx.save(); ctx.beginPath(); ctx.rect(LX0 - 4, y - 70, LX1 - LX0 + 8, 140); ctx.clip();
+    line(LX0, y, LX1, y, C.muted, 2);
+    const ts = LN.t[i];
+    if (aGaps > 0.01) group(aGaps, () => {
+      for (let k = 1; k < ts.length; k++) if (ts[k] - ts[k - 1] < SHORT) {
+        const xa = X(ts[k - 1]), xb = X(ts[k]);
+        ctx.fillStyle = alpha(C.hot, .25); ctx.fillRect(xa - 8, y - 46, xb - xa + 16, 92);
+        line(xa, y + 40, xb, y + 40, C.hot, 4);
+      }
+    });
+    for (const t of ts) { const x = X(t); if (x >= LX0 - 4) { line(x, y - 34, x, y + 34, col, 4); dot(x, y - 34, 6, col); } }
+    ctx.restore();
+  });
+  bracket(LX0, LX0 + LPX, 836, 'average time between photons', C.muted, 18);
+  arrow(LX1 - 170, 836, LX1, 836, C.muted, 2, 11);
+  txt('time', LX1 - 180, 842, { size: 19, align: 'right', color: C.muted });
+}
+const RX0 = 380, RX1 = 1480, RPX = (RX1 - RX0) / RANGE, RY = 260;
+function drawOne(aSlot, aTally, aCurve) {
+  const col = LCOL[CR.type], tRef = CR.tDisp, X = t => RX0 + (t - tRef) * RPX;
+  const settled = CR.slide >= 1 && CR.nRef > 0, tc = CR.times[CR.cur];
+  rrect(30, RY - 74, 1540, 148, 14, C.panel2, C.line, 1.5);
+  txt(CR.type, 50, RY - 34, { size: 26, weight: 700, color: col });
+  txt({ bunched: 'thermal light', random: 'coherent light', antibunched: 'single emitter' }[CR.type], 50, RY - 6, { size: 19, color: C.muted });
+  ctx.save(); ctx.beginPath(); ctx.rect(200, RY - 70, 1366, 140); ctx.clip();
+  const k = tauBin(), s0 = CR.tau, s1 = CR.tau + BW;
+  if (aSlot > 0.01) group(aSlot, () => {
+    let hit = false;
+    for (let j = CR.cur + 1; j < CR.times.length; j++) { const d = CR.times[j] - tc; if (d >= s1) break; if (d >= s0) hit = true; }
+    const xs = RX0 + s0 * RPX + (tc - tRef) * RPX;
+    const good = settled && hit;
+    ctx.fillStyle = good ? alpha(C.ok, .35) : alpha(C.ok, .10); ctx.fillRect(xs, RY - 60, BW * RPX, 120);
+    ctx.strokeStyle = C.ok; ctx.lineWidth = 2.5; ctx.strokeRect(xs, RY - 60, BW * RPX, 120);
+  });
+  line(200, RY, 1566, RY, C.muted, 2);
+  for (let j = Math.max(0, CR.cur - 30); j < CR.times.length; j++) {
+    const x = X(CR.times[j]); if (x < 190) continue; if (x > 1580) break;
+    const later = j > CR.cur && CR.times[j] - tc < RANGE;
+    line(x, RY - 34, x, RY + 34, later || j === CR.cur ? col : alpha(col, .3), 4);
+    dot(x, RY - 34, 6, later || j === CR.cur ? col : alpha(col, .3));
+  }
+  ctx.restore();
+  const xr = X(tc);
+  ctx.beginPath(); ctx.arc(xr, RY - 34, 16, 0, 7); ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.stroke();
+  txtBg('reference', xr, RY + 62, { size: 19, weight: 700, align: 'center' });
+  if (aSlot > 0.01) group(aSlot, () => {
+    const xs = RX0 + s0 * RPX + (tc - tRef) * RPX;
+    txtBg('slot: τ = ' + CR.tau.toFixed(1) + ' to ' + (CR.tau + BW).toFixed(1), xs + BW * RPX / 2, RY - 84, { size: 19, weight: 700, align: 'center', color: C.ok });
+    if (settled && aTally < 0.5) {
+      let n = 0; for (let j = CR.cur + 1; j < CR.times.length; j++) { const d = CR.times[j] - tc; if (d >= s1) break; if (d >= s0) n++; }
+      txt(n ? 'a photon is in the slot' : 'no photon in the slot', 800, RY + 190, { size: 28, weight: 700, align: 'center', color: n ? C.ok : C.muted });
+    }
+  });
+  for (let q = 0; q <= RANGE; q += 0.5) { const x = RX0 + q * RPX; line(x, RY + 74, x, RY + 84, C.muted, 1.5); txt(q.toFixed(1), x, RY + 104, { size: 17, mono: true, align: 'center', color: C.muted }); }
+  txt('delay τ after the reference, in units of the average time between photons', (RX0 + RX1) / 2, RY + 136, { size: 19, align: 'center', color: C.muted });
+  if (aTally > 0.01) group(aTally, () => {
+    const y = 470, found = CR.hist[k], expect = CR.nRef * BW, x = 440, x2 = 1010;
+    const row = (a, b, c, yy) => { txt(a, x, yy, { size: 26, color: C.muted }); txt(b, x2, yy, { size: 30, weight: 700, mono: true, align: 'right', color: c || C.ink }); };
+    row('references used', String(CR.nRef), null, y);
+    row('photons found in the slot', String(found), C.ok, y + 56);
+    row('independent photons would put there', expect.toFixed(1), null, y + 112);
+    txt('= ' + CR.nRef + ' references × 0.1 slot width × rate 1', x2 + 30, y + 112, { size: 19, color: C.muted });
+    line(x, y + 142, x2, y + 142, C.line, 2);
+    txt('g two (τ = ' + CR.tau.toFixed(1) + ' to ' + (CR.tau + BW).toFixed(1) + ') =', x, y + 200, { size: 30, weight: 700 });
+    txt(expect > 0 ? (found / expect).toFixed(2) : '...', x2, y + 200, { size: 40, weight: 700, mono: true, align: 'right', color: col });
+    if (expect > 0) txt('± ' + (Math.sqrt(Math.max(1, found)) / expect).toFixed(2) + '  (statistical uncertainty)', x2 + 30, y + 200, { size: 19, color: C.muted });
+  });
+  if (aCurve > 0.01) group(aCurve, () => {
+    let mr = 0; for (let q = 0; q < NB; q++) mr = Math.max(mr, ratio(q));
+    CR.ys = ease(CR.ys, Math.max(2.3, mr * 1.1), 4);
+    const g = chart({ x: RX0, y: 440, w: RX1 - RX0, h: 290, xmin: 0, xmax: RANGE, ymin: 0, ymax: CR.ys, xstep: 0.5, fs: 19,
+      xlabel: 'delay τ', ylabel: 'g two of τ', yoff: 70 });
+    for (let q = 0; q < NB; q++) {
+      const r = Math.min(ratio(q), CR.ys); if (!r) continue;
+      ctx.fillStyle = alpha(col, .55); ctx.fillRect(g.X(q * BW) + 2, g.Y(r), BW * RPX - 4, g.Y(0) - g.Y(r));
+    }
+    line(RX0, g.Y(1), RX1, g.Y(1), C.ink, 2, [10, 7]);
+    txt('1', RX1 + 10, g.Y(1) + 7, { size: 20, weight: 700 });
+    ctx.beginPath();
+    for (let q = 0; q <= 300; q++) { const tt = RANGE * q / 300, x = g.X(tt), y = g.Y(g2exact(CR.type, tt)); q ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
+    txt('bars: measured, one per slot     black line: exact g two of this light     dashed: 1, independent photons', 800, 866, { size: 20, align: 'center', color: C.muted });
+  });
+}
+
+function sceneInit() { lnLongRun(); lnReset(); crReset(); }
+function sceneStep(dt) {
+  if (cur === 1 || cur === 2) lnAdvance(LN.spd * dt);
+  else if (cur >= 3) crStep(dt);
+}
+function sceneDraw() {
+  const sh = {}; for (const k of STEPS[cur].show) sh[k] = true;
+  const a = k => fade(k, !!sh[k]);
+  const aTwo = a('two'), aL = a('lanes'), aG = a('gaps'), aOne = a('one'), aS = a('slot'), aT = a('tally'), aC = a('curve');
+  group(aTwo, drawTwo);
+  group(aL, () => drawLanes(aG));
+  group(aOne, () => drawOne(aS, aT, aC));
+}
+const SIM_HOOK = () => ({ LN, CR, lnReset, lnAdvance, crReset, crProcess, makeSource, g2exact, STEPS, go });
+
+/* ================= steps, controls, scaling ================= */
+/* The scenes are laid out on a 1600 x 900 grid whose top 150 px held the caption.
+   The caption is now HTML, so the canvas shows the grid from y = 150 downwards. */
+const CAP_H = 150;
+let syncs = [];
+function buildControls() {
+  const box = $('ctrls'); box.innerHTML = ''; syncs = [];
+  const sync = () => syncs.forEach(f => f());
+  for (const id of (STEPS[cur].ctrl || [])) {
+    const s = CTRL[id];
+    const card = document.createElement('div'); card.className = 'card';
+    if (s.kind === 'range' || s.kind === 'log') {
+      card.classList.add('rng');
+      const lab = document.createElement('label');
+      const name = document.createElement('span'); name.innerHTML = s.label;
+      const val = document.createElement('b'); lab.append(name, val);
+      const inp = document.createElement('input'); inp.type = 'range';
+      let toV = x => x, toX = v => v;
+      if (s.kind === 'log') {
+        inp.min = 0; inp.max = 1000; inp.step = 1;
+        toV = x => s.min * Math.pow(s.max / s.min, x / 1000);
+        toX = v => 1000 * Math.log(v / s.min) / Math.log(s.max / s.min);
+      } else { inp.min = s.min; inp.max = s.max; inp.step = s.step; }
+      inp.addEventListener('input', () => { s.set(toV(+inp.value)); sync(); });
+      syncs.push(() => { inp.value = toX(s.get()); val.textContent = s.fmt(s.get()); });
+      card.append(lab, inp);
+    } else if (s.kind === 'seg') {
+      const h = document.createElement('h3'); h.textContent = s.label;
+      const list = document.createElement('div'); list.className = 'lights';
+      for (const o of s.options) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'light';
+        b.style.setProperty('--c', o[2]);
+        b.innerHTML = '<span class="sw"></span><span><b>' + o[1] + '</b>' + (o[3] ? '<small>' + o[3] + '</small>' : '') + '</span>';
+        b.addEventListener('click', () => { if (s.get() !== o[0]) { s.set(o[0]); sync(); } });
+        syncs.push(() => b.classList.toggle('on', s.get() === o[0]));
+        list.appendChild(b);
+      }
+      card.append(h, list);
+    }
+    box.appendChild(card);
+  }
+  sync();
+}
+const shortOf = S => S.short || S.cap.replace(/^\d+\.\s*/, '').split(/[:(]/)[0].trim();
+const stepEls = STEPS.map((S, k) => {
+  const li = document.createElement('li');
+  li.innerHTML = '<span class="n">' + (k + 1) + '</span><span>' + shortOf(S) + '</span>';
+  li.addEventListener('click', () => go(k)); $('steps').appendChild(li); return li;
+});
+const richHTML = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\[([^\]]+)\]/g, '<b>$1</b>').replace(/\{([^}]+)\}/g, '<span class="math">$1</span>');
+function go(n) {
+  cur = Math.max(0, Math.min(STEPS.length - 1, n));
+  stepEls.forEach((el, k) => { el.classList.toggle('active', k === cur); el.classList.toggle('done', k < cur); });
+  $('cap').textContent = STEPS[cur].cap;
+  $('sub').innerHTML = richHTML(STEPS[cur].sub);
+  if (STEPS[cur].enter) STEPS[cur].enter();
+  buildControls();
+  try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) {}
+  requestAnimationFrame(fit);
+}
+function fit() {
+  const r = $('cwrap').getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / LW, r.height / LH), dpr = window.devicePixelRatio || 1;
+  cv.style.width = Math.floor(LW * s) + 'px'; cv.style.height = Math.floor(LH * s) + 'px';
+  cv.width = Math.round(LW * s * dpr); cv.height = Math.round(LH * s * dpr);
+  scale = cv.width / LW;
+}
+function setPlay(on) { playing = on; $('play').innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; }
+$('prev').addEventListener('click', () => go(cur - 1));
+$('next').addEventListener('click', () => go(cur + 1));
+$('play').addEventListener('click', () => setPlay(!playing));
+document.addEventListener('keydown', e => {
+  const tg = e.target, tag = (tg.tagName || '').toLowerCase();
+  if (tag === 'input') return;
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ' && ((tg.closest && tg.closest('.nav')) || tag !== 'button')) { e.preventDefault(); setPlay(!playing); }
+});
+addEventListener('hashchange', () => { const n = parseInt(location.hash.slice(1), 10); if (Number.isFinite(n) && n - 1 !== cur) go(n - 1); });
+new ResizeObserver(fit).observe($('cwrap'));
+
+let last = performance.now();
+function loop(now) {
+  FDT = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  if (playing) sceneStep(FDT);
+  ctx.setTransform(scale, 0, 0, scale, 0, -CAP_H * scale);
+  ctx.clearRect(0, 0, LW, LH + CAP_H);
+  sceneDraw();
+  requestAnimationFrame(loop);
+}
+sceneInit();
+const h0 = parseInt((location.hash || '').slice(1), 10);
+go(Number.isFinite(h0) ? h0 - 1 : 0);
+fit();
+requestAnimationFrame(loop);
+window.SIM = typeof SIM_HOOK === 'function' ? SIM_HOOK() : {};
+})();
+
+</script>
+</body>
+</html>
